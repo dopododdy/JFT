@@ -1,55 +1,97 @@
-// 1. กำหนดค่า URL และ Publishable Key ของคุณ
-const supabaseUrl = 'https://bfpdywqsovagjtifugov.supabase.co';
-const supabaseKey = 'sb_publishable_0HxSBco0tyCwh-ulB8H53Q_e-nvymr3';
+/**
+ * Juangphonngam Family Tree (JFT) - Database Connection
+ * ไฟล์เชื่อมต่อ Supabase สำหรับโปรเจกต์ตระกูลจวงพลงาม
+ */
+
+// 1. ตั้งค่า Configuration (URL และ Public Key ของคุณ)
+const SUPABASE_URL = 'https://bfpdywqsovagjtifugov.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_0HxSBco0tyCwh-ulB8H53Q_e-nvymr3';
 
 // 2. สร้าง Supabase Client
-const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+// หมายเหตุ: ใช้ชื่อตัวแปร _supabase เพื่อไม่ให้ชนกับตัวแปรกลางของ Library ที่โหลดจาก CDN
+const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 3. ฟังก์ชันสำหรับดึงข้อมูลสมาชิกตระกูลจากตาราง profiles
-async function getFamilyMembers() {
-    const statusElement = document.getElementById('connection-status');
-    const containerElement = document.getElementById('members-container');
+/**
+ * ฟังก์ชันสำหรับดึงข้อมูลสมาชิกทั้งหมดจากตาราง profiles
+ */
+async function fetchFamilyMembers() {
+    const statusEl = document.getElementById('connection-status');
+    const containerEl = document.getElementById('members-container');
+
+    // ตรวจสอบว่ามี Element ในหน้า HTML หรือไม่
+    if (!statusEl || !containerEl) return;
 
     try {
-        // ลองดึงข้อมูลทั้งหมดจากตาราง 'profiles'
-        const { data, error } = await supabase
+        // ดึงข้อมูลจาก Supabase โดยเรียงตามวันเกิด (จากผู้ใหญ่ไปหาเด็ก)
+        const { data, error } = await _supabase
             .from('profiles')
-            .select('*');
+            .select('*')
+            .order('birth_date', { ascending: true });
 
-        // ถ้ามี Error จาก Supabase ให้โยนเข้า Catch
         if (error) throw error;
 
-        // อัปเดตสถานะเมื่อเชื่อมต่อสำเร็จ
-        statusElement.innerHTML = '<span class="success">เชื่อมต่อสำเร็จ! ✅</span>';
+        // แสดงสถานะสำเร็จ
+        statusEl.innerHTML = '<span style="color: #16a34a; font-weight: bold;">เชื่อมต่อข้อมูลสำเร็จ ✅</span>';
 
-        // ตรวจสอบว่ามีข้อมูลหรือไม่
         if (data && data.length > 0) {
-            // วนลูปสร้าง HTML สำหรับแสดงผลแต่ละบุคคล
-            const htmlContent = data.map(member => `
-                <div class="member-card">
-                    <h3>${member.first_name || 'ไม่ระบุชื่อ'} ${member.last_name || ''}</h3>
-                    <p><strong>เพศ:</strong> ${member.gender || '-'}</p>
-                    <p><strong>วันเกิด:</strong> ${member.birth_date || 'ไม่ระบุ'}</p>
-                </div>
-            `).join('');
-            
-            containerElement.innerHTML = htmlContent;
+            // สร้าง HTML สำหรับการ์ดสมาชิกแต่ละคน
+            const cardsHtml = data.map(member => {
+                const fullName = `${member.first_name} ${member.last_name || ''}`.trim();
+                const genderIcon = member.gender === 'ชาย' ? '👨' : (member.gender === 'หญิง' ? '👩' : '👤');
+                
+                return `
+                    <div class="member-card" style="
+                        background: white; 
+                        padding: 20px; 
+                        border-radius: 12px; 
+                        margin-bottom: 15px; 
+                        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+                        border-left: 5px solid #2563eb;
+                    ">
+                        <h3 style="margin: 0 0 10px 0; color: #1e293b;">
+                            ${genderIcon} ${fullName}
+                        </h3>
+                        <div style="font-size: 0.95rem; color: #475569; line-height: 1.6;">
+                            <div><strong>เพศ:</strong> ${member.gender || 'ไม่ระบุ'}</div>
+                            <div><strong>วันเกิด:</strong> ${formatThaiDate(member.birth_date)}</div>
+                            ${member.bio ? `<div style="margin-top:8px; font-style:italic;">"${member.bio}"</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            containerEl.innerHTML = cardsHtml;
         } else {
-            // กรณีเชื่อมต่อได้ แต่ยังไม่มีข้อมูลในตาราง
-            containerElement.innerHTML = `
-                <div class="member-card" style="text-align: center; color: #6b7280;">
-                    ยังไม่มีข้อมูลสมาชิกในระบบ <br>
-                    (ตาราง <code>profiles</code> เชื่อมต่อได้แล้ว แต่ยังว่างเปล่าอยู่ครับ)
+            // กรณีเชื่อมต่อได้แต่ไม่มีข้อมูล
+            containerEl.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 12px;">
+                    <p>ยังไม่พบข้อมูลสมาชิกในตระกูล</p>
+                    <small>กรุณาเพิ่มข้อมูลในตาราง profiles ผ่าน Supabase Dashboard</small>
                 </div>`;
         }
 
-    } catch (error) {
-        console.error('พบข้อผิดพลาด:', error.message);
-        // อัปเดตสถานะเมื่อเชื่อมต่อล้มเหลว
-        statusElement.innerHTML = `<span class="error">เชื่อมต่อล้มเหลว ❌ (${error.message})</span>`;
-        containerElement.innerHTML = '<p style="color: red;">โปรดตรวจสอบชื่อตาราง (profiles) หรือนโยบาย RLS ใน Supabase อีกครั้ง</p>';
+    } catch (err) {
+        console.error('Connection Error:', err.message);
+        statusEl.innerHTML = '<span style="color: #dc2626; font-weight: bold;">การเชื่อมต่อผิดพลาด ❌</span>';
+        containerEl.innerHTML = `
+            <div style="background: #fef2f2; color: #991b1b; padding: 20px; border-radius: 8px; border: 1px solid #fecaca;">
+                <strong>เกิดข้อผิดพลาด:</strong> ${err.message}
+            </div>`;
     }
 }
 
-// 4. สั่งให้ฟังก์ชันทำงานทันทีที่โหลดหน้าเว็บเสร็จ
-document.addEventListener('DOMContentLoaded', getFamilyMembers);
+/**
+ * ฟังก์ชันแปลงวันที่เป็นรูปแบบไทย (เช่น 1 เมษายน 2569)
+ */
+function formatThaiDate(dateStr) {
+    if (!dateStr) return 'ไม่ระบุ';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('th-TH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+}
+
+// รันฟังก์ชันเมื่อโหลดหน้าเว็บสำเร็จ
+document.addEventListener('DOMContentLoaded', fetchFamilyMembers);
