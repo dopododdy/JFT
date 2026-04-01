@@ -12,6 +12,8 @@ const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // เก็บข้อมูลสมาชิกทั้งหมดไว้ใช้งานร่วมกัน
 window._familyMembers = [];
+// เก็บข้อมูลความสัมพันธ์ทั้งหมด (จากตาราง relationships)
+window._relationships = [];
 
 /**
  * ป้องกัน XSS ด้วยการ Escape อักขระพิเศษใน HTML
@@ -53,6 +55,22 @@ function calcAge(birthDateStr) {
 }
 
 /**
+ * ดึงข้อมูลความสัมพันธ์จากตาราง relationships (ถ้ามี)
+ */
+async function fetchRelationships() {
+    try {
+        const { data, error } = await _supabase
+            .from('relationships')
+            .select('*');
+        if (error) throw error;
+        window._relationships = data || [];
+    } catch (err) {
+        console.warn('ไม่สามารถดึงข้อมูลความสัมพันธ์ (อาจต้องสร้างตาราง relationships):', err.message);
+        window._relationships = [];
+    }
+}
+
+/**
  * ดึงข้อมูลสมาชิกทั้งหมดจากตาราง profiles
  */
 async function fetchFamilyMembers() {
@@ -71,6 +89,8 @@ async function fetchFamilyMembers() {
         statusEl.innerHTML = '<span style="color:#16a34a;font-weight:bold;">เชื่อมต่อสำเร็จ ✅</span>';
 
         window._familyMembers = data || [];
+        await fetchRelationships();
+
         const countEl = document.getElementById('member-count');
         if (countEl) countEl.textContent = window._familyMembers.length > 0 ? window._familyMembers.length + ' คน' : '';
 
@@ -92,6 +112,79 @@ async function fetchFamilyMembers() {
                 <p style="color:#991b1b;font-weight:600;">เกิดข้อผิดพลาด</p>
                 <small style="color:#b91c1c;">${escapeHtml(err.message)}</small>
             </div>`;
+    }
+}
+
+/**
+ * ลบสมาชิกออกจากฐานข้อมูล
+ */
+async function deleteMember(memberId, evt) {
+    if (evt) evt.stopPropagation();
+    const member = window._familyMembers.find(m => m.id === memberId);
+    const name = member ? `${member.first_name} ${member.last_name || ''}`.trim() : 'สมาชิกนี้';
+    if (!confirm(`ต้องการลบ "${name}" ออกจากระบบหรือไม่?\n(ข้อมูลที่ลบแล้วไม่สามารถกู้คืนได้)`)) return;
+    try {
+        await ensureSignedIn();
+        const { error } = await _supabase.from('profiles').delete().eq('id', memberId);
+        if (error) throw error;
+        showToast('✅ ลบสมาชิกสำเร็จ');
+        await fetchFamilyMembers();
+    } catch (err) {
+        showToast('❌ เกิดข้อผิดพลาด: ' + err.message, true);
+    }
+}
+
+/**
+ * บันทึกความสัมพันธ์ระหว่างสมาชิก
+ */
+async function saveRelationship(fromId, toId, relationType) {
+    try {
+        await ensureSignedIn();
+
+        if (relationType === 'พ่อ' || relationType === 'แม่') {
+            // ตั้งค่า parent_id ของสมาชิกปัจจุบัน
+            const { error } = await _supabase
+                .from('profiles')
+                .update({ parent_id: toId })
+                .eq('id', fromId);
+            if (error) throw error;
+        } else if (relationType === 'ลูก') {
+            // ตั้งค่า parent_id ของสมาชิกเป้าหมาย
+            const { error } = await _supabase
+                .from('profiles')
+                .update({ parent_id: fromId })
+                .eq('id', toId);
+            if (error) throw error;
+        } else {
+            // พี่ น้อง สามี/ภรรยา — บันทึกลงตาราง relationships
+            const { error } = await _supabase
+                .from('relationships')
+                .insert([{ from_id: fromId, to_id: toId, relation: relationType }]);
+            if (error) throw error;
+        }
+
+        showToast('✅ บันทึกความสัมพันธ์สำเร็จ');
+        await fetchFamilyMembers();
+    } catch (err) {
+        showToast('❌ เกิดข้อผิดพลาด: ' + err.message, true);
+    }
+}
+
+/**
+ * ลบความสัมพันธ์
+ */
+async function deleteRelationship(relationId) {
+    try {
+        await ensureSignedIn();
+        const { error } = await _supabase
+            .from('relationships')
+            .delete()
+            .eq('id', relationId);
+        if (error) throw error;
+        showToast('✅ ลบความสัมพันธ์สำเร็จ');
+        await fetchFamilyMembers();
+    } catch (err) {
+        showToast('❌ เกิดข้อผิดพลาด: ' + err.message, true);
     }
 }
 
@@ -126,17 +219,47 @@ function renderMemberCards(members) {
             }
         }
 
+        // แสดงความสัมพันธ์เพิ่มเติม (จากตาราง relationships)
+        const relTags = (window._relationships || [])
+            .filter(r => r.from_id === member.id || r.to_id === member.id)
+            .map(r => {
+                const isFrom = r.from_id === member.id;
+                const otherId = isFrom ? r.to_id : r.from_id;
+                const other = window._familyMembers.find(m => m.id === otherId);
+                if (!other) return '';
+                const otherName = `${other.first_name} ${other.last_name || ''}`.trim();
+                const label = isFrom ? r.relation : _reverseRelation(r.relation);
+                return `<span class="rel-tag">${escapeHtml(label)}: ${escapeHtml(otherName)}</span>`;
+            })
+            .filter(Boolean)
+            .join('');
+
         return `
-            <div class="member-card" data-name="${escapeHtml(fullName.toLowerCase())}" style="border-left-color:${accentColor};">
-                <h3 class="member-card-name">${genderIcon} ${escapeHtml(fullName)}</h3>
+            <div class="member-card" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(fullName.toLowerCase())}" style="border-left-color:${accentColor};">
+                <div class="member-card-header">
+                    <h3 class="member-card-name">${genderIcon} ${escapeHtml(fullName)}</h3>
+                    <button class="btn-card-delete" data-member-id="${escapeHtml(member.id)}" title="ลบสมาชิก">🗑️ ลบ</button>
+                </div>
                 <div class="member-card-info">
                     <div><strong>เพศ:</strong> ${escapeHtml(member.gender) || 'ไม่ระบุ'}</div>
                     <div><strong>วันเกิด:</strong> ${formatThaiDate(member.birth_date)}</div>
                     ${parentText}
+                    ${relTags ? `<div class="rel-tags-wrap">${relTags}</div>` : ''}
                     ${member.bio ? `<div class="member-bio">"${escapeHtml(member.bio)}"</div>` : ''}
+                </div>
+                <div class="member-card-footer">
+                    <span class="card-hint">🔗 คลิกเพื่อจัดการความสัมพันธ์</span>
                 </div>
             </div>`;
     }).join('');
+}
+
+/**
+ * แปลงความสัมพันธ์เป็นมุมมองของอีกฝ่าย
+ */
+function _reverseRelation(relation) {
+    const map = { 'พ่อ': 'ลูก', 'แม่': 'ลูก', 'ลูก': 'พ่อ/แม่', 'พี่': 'น้อง', 'น้อง': 'พี่', 'สามี/ภรรยา': 'สามี/ภรรยา' };
+    return map[relation] || relation;
 }
 
 /**
