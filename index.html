@@ -6,50 +6,387 @@
     <title>Juangphonngam Family Tree (JFT)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f9fafb;
+            background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 50%, #fafffe 100%);
+            min-height: 100vh;
             color: #1f2937;
-            padding: 2rem;
-            max-width: 800px;
-            margin: 0 auto;
         }
-        .header {
+
+        /* ───── Header ───── */
+        .site-header {
+            background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 60%, #388e3c 100%);
+            color: #fff;
+            padding: 2rem 1rem 1.5rem;
             text-align: center;
-            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .site-header::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+        }
+        .site-header h1 { font-size: clamp(1.5rem, 4vw, 2.2rem); position: relative; }
+        .site-header p  { margin-top: 0.4rem; opacity: 0.85; position: relative; font-size: 0.95rem; }
+
+        /* ───── Toolbar ───── */
+        .toolbar {
+            max-width: 900px;
+            margin: 1.5rem auto 0;
+            padding: 0 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+        }
+        .toolbar input[type="search"] {
+            flex: 1 1 200px;
+            padding: 0.55rem 1rem;
+            border: 1.5px solid #a7f3d0;
+            border-radius: 2rem;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background: #fff;
+        }
+        .toolbar input[type="search"]:focus {
+            border-color: #059669;
+            box-shadow: 0 0 0 3px rgba(5,150,105,0.15);
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.55rem 1.2rem;
+            border: none;
+            border-radius: 2rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary {
+            background: #059669;
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(5,150,105,0.3);
+        }
+        .btn-primary:hover { background: #047857; box-shadow: 0 4px 10px rgba(5,150,105,0.4); }
+        .btn-secondary {
+            background: #fff;
+            color: #374151;
+            border: 1.5px solid #d1fae5;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+        .btn-secondary:hover { background: #f0fdf4; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+
+        /* ───── Status Bar ───── */
+        .status-bar {
+            max-width: 900px;
+            margin: 1rem auto 0;
+            padding: 0 1rem;
         }
         .status-box {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            background-color: #e5e7eb;
-            margin-bottom: 1.5rem;
-            text-align: center;
+            padding: 0.65rem 1.2rem;
+            border-radius: 0.75rem;
+            background: #fff;
+            border: 1.5px solid #d1fae5;
+            font-size: 0.88rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
         }
-        .member-card {
-            background-color: #ffffff;
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+
+        /* ───── Main Content ───── */
+        .main {
+            max-width: 900px;
+            margin: 1.5rem auto 4rem;
+            padding: 0 1rem;
+        }
+        .section-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #065f46;
             margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        .success { color: #15803d; font-weight: bold; }
-        .error { color: #b91c1c; font-weight: bold; }
+        .badge {
+            background: #d1fae5;
+            color: #065f46;
+            font-size: 0.75rem;
+            padding: 0.15rem 0.6rem;
+            border-radius: 1rem;
+            font-weight: 700;
+        }
+
+        /* ───── Member Grid ───── */
+        #members-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        /* ───── Modal ───── */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            backdrop-filter: blur(3px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+        .modal-backdrop.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .modal {
+            background: #fff;
+            border-radius: 1rem;
+            padding: 2rem;
+            width: min(480px, 95vw);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            transform: translateY(20px);
+            transition: transform 0.25s;
+        }
+        .modal-backdrop.open .modal { transform: translateY(0); }
+        .modal h2 { font-size: 1.15rem; color: #065f46; margin-bottom: 1.25rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.35rem;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.55rem 0.85rem;
+            border: 1.5px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+            font-family: inherit;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: #059669;
+            box-shadow: 0 0 0 3px rgba(5,150,105,0.15);
+        }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; }
+
+        /* ───── Notification Toast ───── */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            background: #065f46;
+            color: #fff;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.75rem;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+            transform: translateY(80px);
+            opacity: 0;
+            transition: transform 0.3s, opacity 0.3s;
+            z-index: 200;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.error { background: #b91c1c; }
+
+        /* ───── Empty / Loading states ───── */
+        .state-placeholder {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #9ca3af;
+            border: 2px dashed #d1fae5;
+            border-radius: 1rem;
+        }
+        .state-placeholder p { margin-top: 0.5rem; font-size: 0.9rem; }
+        .spinner {
+            display: inline-block;
+            width: 2rem;
+            height: 2rem;
+            border: 3px solid #d1fae5;
+            border-top-color: #059669;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ───── Responsive ───── */
+        @media (max-width: 480px) {
+            .form-row { grid-template-columns: 1fr; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+        }
     </style>
 </head>
 <body>
 
-    <div class="header">
+    <!-- ░░ Header ░░ -->
+    <header class="site-header">
         <h1>🌳 Juangphonngam Family Tree (JFT)</h1>
         <p>ระบบจัดการแผนผังครอบครัวจวงพลงาม</p>
+    </header>
+
+    <!-- ░░ Toolbar ░░ -->
+    <div class="toolbar">
+        <input type="search" id="search-input" placeholder="🔍  ค้นหาชื่อสมาชิก..." oninput="filterMembers()" />
+        <button class="btn btn-primary" onclick="openModal()">➕ เพิ่มสมาชิก</button>
+        <button class="btn btn-secondary" onclick="fetchFamilyMembers()">🔄 รีเฟรช</button>
     </div>
 
-    <div class="status-box">
-        สถานะการเชื่อมต่อ Supabase: <span id="connection-status">กำลังเชื่อมต่อ... ⏳</span>
+    <!-- ░░ Status ░░ -->
+    <div class="status-bar">
+        <div class="status-box">
+            📡&nbsp; สถานะ Supabase:&nbsp;
+            <span id="connection-status">กำลังเชื่อมต่อ… ⏳</span>
+        </div>
     </div>
 
-    <h2>รายชื่อสมาชิกในครอบครัว</h2>
-    <div id="members-container"></div>
+    <!-- ░░ Main ░░ -->
+    <main class="main">
+        <div class="section-title">
+            👨‍👩‍👧‍👦 สมาชิกในครอบครัว
+            <span class="badge" id="member-count"></span>
+        </div>
+        <div id="members-container">
+            <div class="state-placeholder">
+                <div class="spinner"></div>
+                <p>กำลังโหลดข้อมูลสมาชิก…</p>
+            </div>
+        </div>
+    </main>
 
-    <script src="conSupabase.js"></script>
+    <!-- ░░ Add-Member Modal ░░ -->
+    <div class="modal-backdrop" id="modal-backdrop" onclick="closeModalOnBackdrop(event)">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <h2 id="modal-title">➕ เพิ่มสมาชิกใหม่</h2>
+            <form id="add-member-form" onsubmit="submitNewMember(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="f-firstname">ชื่อ *</label>
+                        <input type="text" id="f-firstname" placeholder="เช่น สมชาย" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="f-lastname">นามสกุล</label>
+                        <input type="text" id="f-lastname" placeholder="เช่น จวงพลงาม" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="f-gender">เพศ</label>
+                        <select id="f-gender">
+                            <option value="">— ไม่ระบุ —</option>
+                            <option value="ชาย">ชาย</option>
+                            <option value="หญิง">หญิง</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="f-birthdate">วันเกิด</label>
+                        <input type="date" id="f-birthdate" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="f-bio">ประวัติสั้น ๆ</label>
+                    <textarea id="f-bio" rows="2" placeholder="เช่น บิดาของตระกูล…"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary" id="submit-btn">บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ░░ Toast ░░ -->
+    <div class="toast" id="toast"></div>
+
+    <!-- ░░ Scripts ░░ -->
+    <script src="connSupabase.js"></script>
+    <script>
+        /* ── UI helpers ── */
+        function openModal() {
+            document.getElementById('modal-backdrop').classList.add('open');
+            document.getElementById('f-firstname').focus();
+        }
+        function closeModal() {
+            document.getElementById('modal-backdrop').classList.remove('open');
+            document.getElementById('add-member-form').reset();
+        }
+        function closeModalOnBackdrop(e) {
+            if (e.target === document.getElementById('modal-backdrop')) closeModal();
+        }
+
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast' + (isError ? ' error' : '');
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        /* ── Search / filter ── */
+        function filterMembers() {
+            const q = document.getElementById('search-input').value.trim().toLowerCase();
+            document.querySelectorAll('#members-container .member-card').forEach(card => {
+                const name = (card.dataset.name || '').toLowerCase();
+                card.style.display = (q === '' || name.includes(q)) ? '' : 'none';
+            });
+        }
+
+        /* ── Keyboard close ── */
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        /* ── Add member ── */
+        async function submitNewMember(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'กำลังบันทึก…';
+
+            const payload = {
+                first_name: document.getElementById('f-firstname').value.trim(),
+                last_name:  document.getElementById('f-lastname').value.trim() || null,
+                gender:     document.getElementById('f-gender').value || null,
+                birth_date: document.getElementById('f-birthdate').value || null,
+                bio:        document.getElementById('f-bio').value.trim() || null,
+            };
+
+            try {
+                const { error } = await _supabase.from('profiles').insert([payload]);
+                if (error) throw error;
+                showToast('✅ เพิ่มสมาชิกสำเร็จ!');
+                closeModal();
+                await fetchFamilyMembers();
+            } catch (err) {
+                showToast('❌ เกิดข้อผิดพลาด: ' + err.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'บันทึก';
+            }
+        }
+    </script>
 </body>
 </html>
