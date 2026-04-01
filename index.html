@@ -585,6 +585,7 @@
             };
 
             try {
+                await ensureSignedIn();
                 const { error } = await _supabase.from('profiles').insert([payload]);
                 if (error) throw error;
                 showToast('✅ เพิ่มสมาชิกสำเร็จ!');

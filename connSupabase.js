@@ -296,5 +296,17 @@ function renderFamilyTree(members) {
     `;
 }
 
+/**
+ * ตรวจสอบว่ามี session อยู่แล้วหรือไม่ ถ้าไม่มีให้ sign-in แบบ anonymous
+ * เพื่อให้ auth.uid() ไม่เป็น null ก่อน insert ข้อมูลลงตาราง
+ */
+async function ensureSignedIn() {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (!session) {
+        const { error } = await _supabase.auth.signInAnonymously();
+        if (error) throw new Error('ไม่สามารถยืนยันตัวตนแบบ anonymous ได้: ' + error.message);
+    }
+}
+
 // โหลดข้อมูลเมื่อเปิดหน้าเว็บ
 document.addEventListener('DOMContentLoaded', fetchFamilyMembers);
