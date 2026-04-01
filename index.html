@@ -175,11 +175,34 @@
             transition: box-shadow 0.2s, transform 0.2s;
             cursor: pointer;
         }
+        .member-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.13); transform: translateY(-2px); }
+        .member-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 8px;
+        }
         .member-card-name {
-            margin: 0 0 8px 0;
+            margin: 0;
             color: #1e293b;
             font-size: 1rem;
+            flex: 1;
         }
+        .btn-card-delete {
+            flex-shrink: 0;
+            padding: 0.25rem 0.55rem;
+            border: 1.5px solid #fecaca;
+            border-radius: 0.5rem;
+            background: #fff5f5;
+            color: #b91c1c;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .btn-card-delete:hover { background: #fee2e2; border-color: #f87171; }
         .member-card-info {
             font-size: 0.85rem;
             color: #475569;
@@ -189,6 +212,31 @@
             margin-top: 6px;
             font-style: italic;
             color: #64748b;
+        }
+        .rel-tags-wrap {
+            margin-top: 6px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .rel-tag {
+            display: inline-block;
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+            border-radius: 1rem;
+            font-size: 0.72rem;
+            padding: 1px 8px;
+            font-weight: 600;
+        }
+        .member-card-footer {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #f1f5f9;
+        }
+        .card-hint {
+            font-size: 0.75rem;
+            color: #94a3b8;
         }
 
         /* ───── Tree View ───── */
@@ -314,6 +362,79 @@
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
         .modal-actions { display: flex; justify-content: stretch; gap: 0.75rem; margin-top: 1.25rem; }
         .modal-actions .btn { flex: 1; }
+
+        /* ───── Relation Modal ───── */
+        .relation-type-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.6rem;
+            margin: 0.9rem 0;
+        }
+        .btn-rel-type {
+            padding: 0.65rem 0.5rem;
+            border: 1.5px solid #d1fae5;
+            border-radius: 0.75rem;
+            background: #f0fdf4;
+            color: #065f46;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, transform 0.1s;
+            text-align: center;
+        }
+        .btn-rel-type:hover { background: #d1fae5; border-color: #059669; }
+        .btn-rel-type:active { transform: scale(0.96); }
+        .relation-step2 { display: none; margin-top: 0.75rem; }
+        .relation-step2.visible { display: block; }
+        .relation-step2-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+        .relation-existing {
+            margin-top: 0.9rem;
+            padding-top: 0.9rem;
+            border-top: 1.5px solid #f1f5f9;
+        }
+        .relation-existing-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+        }
+        .relation-existing-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+        .relation-existing-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 0.35rem 0.7rem;
+            font-size: 0.82rem;
+            color: #1e293b;
+        }
+        .relation-existing-item button {
+            border: none;
+            background: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+        .relation-existing-item button:hover { background: #fee2e2; }
+        .relation-member-name {
+            font-size: 0.92rem;
+            color: #374151;
+            margin-bottom: 0.75rem;
+        }
 
         /* ───── Notification Toast ───── */
         .toast {
@@ -500,6 +621,54 @@
         </div>
     </div>
 
+    <!-- ░░ Relation Modal ░░ -->
+    <div class="modal-backdrop" id="relation-modal-backdrop" onclick="closeRelationModalOnBackdrop(event)">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="relation-modal-title">
+            <div class="modal-drag-handle"></div>
+            <h2 id="relation-modal-title">🔗 ความสัมพันธ์</h2>
+            <p class="relation-member-name" id="relation-member-name"></p>
+
+            <!-- Step 1: เลือกประเภทความสัมพันธ์ -->
+            <div id="relation-step1">
+                <div style="font-size:0.85rem;font-weight:600;color:#374151;margin-bottom:0.5rem;">เพิ่มความสัมพันธ์ใหม่:</div>
+                <div class="relation-type-grid">
+                    <button class="btn-rel-type" onclick="selectRelationType('พ่อ')">👨 พ่อ</button>
+                    <button class="btn-rel-type" onclick="selectRelationType('แม่')">👩 แม่</button>
+                    <button class="btn-rel-type" onclick="selectRelationType('พี่')">🧑 พี่</button>
+                    <button class="btn-rel-type" onclick="selectRelationType('น้อง')">🧒 น้อง</button>
+                    <button class="btn-rel-type" onclick="selectRelationType('สามี/ภรรยา')">💑 สามี/ภรรยา</button>
+                    <button class="btn-rel-type" onclick="selectRelationType('ลูก')">👶 ลูก</button>
+                </div>
+
+                <!-- Step 2: เลือกสมาชิก -->
+                <div class="relation-step2" id="relation-step2">
+                    <div class="relation-step2-title" id="relation-step2-title"></div>
+                    <div class="form-group" style="margin-bottom:0.5rem;">
+                        <select id="relation-target-select">
+                            <option value="">— เลือกสมาชิก —</option>
+                        </select>
+                    </div>
+                    <div class="modal-actions" style="margin-top:0.75rem;">
+                        <button class="btn btn-secondary" onclick="cancelRelationType()">ยกเลิก</button>
+                        <button class="btn btn-primary" onclick="confirmRelationship()">✅ บันทึก</button>
+                    </div>
+                </div>
+
+                <!-- ความสัมพันธ์ที่มีอยู่ -->
+                <div class="relation-existing" id="relation-existing-section">
+                    <div class="relation-existing-title">ความสัมพันธ์ที่มีอยู่:</div>
+                    <div class="relation-existing-list" id="relation-existing-list">
+                        <div style="font-size:0.82rem;color:#9ca3af;">ยังไม่มีข้อมูล</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top:1rem;">
+                <button class="btn btn-secondary" onclick="closeRelationModal()">ปิด</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ░░ Toast ░░ -->
     <div class="toast" id="toast"></div>
 
@@ -564,8 +733,170 @@
 
         /* ── Keyboard close ── */
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') closeModal();
+            if (e.key === 'Escape') { closeModal(); closeRelationModal(); }
         });
+
+        /* ── Relation Modal ── */
+        let _currentRelationMemberId = null;
+        let _currentRelationType = null;
+
+        // Event delegation for member cards
+        document.addEventListener('click', function(e) {
+            // Delete button on card
+            const deleteBtn = e.target.closest('.btn-card-delete');
+            if (deleteBtn) {
+                e.stopPropagation();
+                deleteMember(deleteBtn.dataset.memberId, e);
+                return;
+            }
+            // Click card to open relation modal
+            const card = e.target.closest('.member-card');
+            if (card && document.getElementById('members-container').contains(card)) {
+                openRelationModal(card.dataset.id, e);
+                return;
+            }
+            // Remove parent relation
+            const removeBtn = e.target.closest('[data-remove-parent]');
+            if (removeBtn) {
+                removeParent(removeBtn.dataset.removeParent);
+                return;
+            }
+            // Delete relation from relationships table
+            const delRelBtn = e.target.closest('[data-delete-relation]');
+            if (delRelBtn) {
+                deleteRelationship(delRelBtn.dataset.deleteRelation);
+            }
+        });
+
+        function openRelationModal(memberId, evt) {
+            if (evt) evt.stopPropagation();
+            _currentRelationMemberId = memberId;
+            _currentRelationType = null;
+
+            const member = (window._familyMembers || []).find(m => m.id === memberId);
+            if (!member) return;
+            const fullName = `${member.first_name} ${member.last_name || ''}`.trim();
+            const genderIcon = member.gender === 'ชาย' ? '👨' : (member.gender === 'หญิง' ? '👩' : '👤');
+
+            document.getElementById('relation-member-name').textContent = `${genderIcon} ${fullName}`;
+
+            // ซ่อน step2
+            document.getElementById('relation-step2').classList.remove('visible');
+
+            // แสดงความสัมพันธ์ที่มีอยู่
+            _renderExistingRelations(memberId, member);
+
+            document.getElementById('relation-modal-backdrop').classList.add('open');
+        }
+
+        function _renderExistingRelations(memberId, member) {
+            const listEl = document.getElementById('relation-existing-list');
+            const rows = [];
+
+            // ความสัมพันธ์จาก parent_id
+            if (member.parent_id) {
+                const parent = (window._familyMembers || []).find(m => m.id === member.parent_id);
+                if (parent) {
+                    const pName = `${parent.first_name} ${parent.last_name || ''}`.trim();
+                    rows.push(`<div class="relation-existing-item">
+                        <span><strong>ผู้ปกครอง:</strong> ${escapeHtml(pName)}</span>
+                        <button data-remove-parent="${escapeHtml(memberId)}" title="ลบความสัมพันธ์นี้">✕</button>
+                    </div>`);
+                }
+            }
+
+            // ลูก (สมาชิกที่มี parent_id = memberId)
+            (window._familyMembers || []).filter(m => m.parent_id === memberId).forEach(child => {
+                const cName = `${child.first_name} ${child.last_name || ''}`.trim();
+                rows.push(`<div class="relation-existing-item">
+                    <span><strong>ลูก:</strong> ${escapeHtml(cName)}</span>
+                    <button data-remove-parent="${escapeHtml(child.id)}" title="ลบความสัมพันธ์นี้">✕</button>
+                </div>`);
+            });
+
+            // ความสัมพันธ์จากตาราง relationships
+            (window._relationships || [])
+                .filter(r => r.from_id === memberId || r.to_id === memberId)
+                .forEach(r => {
+                    const isFrom = r.from_id === memberId;
+                    const otherId = isFrom ? r.to_id : r.from_id;
+                    const other = (window._familyMembers || []).find(m => m.id === otherId);
+                    if (!other) return;
+                    const oName = `${other.first_name} ${other.last_name || ''}`.trim();
+                    const label = isFrom ? r.relation : _reverseRelation(r.relation);
+                    rows.push(`<div class="relation-existing-item">
+                        <span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(oName)}</span>
+                        <button data-delete-relation="${escapeHtml(r.id)}" title="ลบความสัมพันธ์นี้">✕</button>
+                    </div>`);
+                });
+
+            listEl.innerHTML = rows.length > 0
+                ? rows.join('')
+                : '<div style="font-size:0.82rem;color:#9ca3af;">ยังไม่มีข้อมูล</div>';
+        }
+
+        function closeRelationModal() {
+            document.getElementById('relation-modal-backdrop').classList.remove('open');
+            _currentRelationMemberId = null;
+            _currentRelationType = null;
+            document.getElementById('relation-step2').classList.remove('visible');
+        }
+
+        function closeRelationModalOnBackdrop(e) {
+            if (e.target === document.getElementById('relation-modal-backdrop')) closeRelationModal();
+        }
+
+        function selectRelationType(type) {
+            _currentRelationType = type;
+            const step2 = document.getElementById('relation-step2');
+            const titleEl = document.getElementById('relation-step2-title');
+            const selectEl = document.getElementById('relation-target-select');
+
+            titleEl.textContent = `เลือกสมาชิกที่เป็น "${type}" ของบุคคลนี้:`;
+
+            // เติมรายชื่อ (ยกเว้นตัวเอง)
+            selectEl.innerHTML = '<option value="">— เลือกสมาชิก —</option>';
+            (window._familyMembers || [])
+                .filter(m => m.id !== _currentRelationMemberId)
+                .forEach(m => {
+                    const name = `${m.first_name} ${m.last_name || ''}`.trim();
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = name;
+                    selectEl.appendChild(opt);
+                });
+
+            step2.classList.add('visible');
+        }
+
+        function cancelRelationType() {
+            _currentRelationType = null;
+            document.getElementById('relation-step2').classList.remove('visible');
+        }
+
+        async function confirmRelationship() {
+            const toId = document.getElementById('relation-target-select').value;
+            if (!toId) { showToast('⚠️ กรุณาเลือกสมาชิก', true); return; }
+            if (!_currentRelationMemberId || !_currentRelationType) return;
+            closeRelationModal();
+            await saveRelationship(_currentRelationMemberId, toId, _currentRelationType);
+        }
+
+        async function removeParent(memberId) {
+            try {
+                await ensureSignedIn();
+                const { error } = await _supabase
+                    .from('profiles')
+                    .update({ parent_id: null })
+                    .eq('id', memberId);
+                if (error) throw error;
+                showToast('✅ ลบความสัมพันธ์สำเร็จ');
+                closeRelationModal();
+                await fetchFamilyMembers();
+            } catch (err) {
+                showToast('❌ ' + err.message, true);
+            }
+        }
 
         /* ── Add member ── */
         async function submitNewMember(e) {
