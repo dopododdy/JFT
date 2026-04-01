@@ -324,6 +324,10 @@ function renderFamilyTree(members) {
     const V_GAP  = 64;
     const PAD    = 24;
 
+    // ค่าหน่วงเวลา animation (วินาที) ต่อระดับชั้น และ offset สำหรับเส้นเชื่อม
+    const ANIM_DELAY_PER_LEVEL = 0.15;
+    const LINE_ANIM_BASE_DELAY = 0.10;
+
     // สร้าง map และกำหนดลูก ๆ ให้แต่ละโหนด
     const byId = {};
     members.forEach(m => { byId[m.id] = { ...m, _children: [] }; });
@@ -343,6 +347,14 @@ function renderFamilyTree(members) {
         node._children.forEach(sortChildren);
     }
     roots.forEach(sortChildren);
+
+    // คำนวณความลึก (depth) ของแต่ละโหนดเพื่อใช้กับ animation delay
+    const depths = {};
+    function setDepth(node, d) {
+        depths[node.id] = d;
+        node._children.forEach(c => setDepth(c, d + 1));
+    }
+    roots.forEach(r => setDepth(r, 0));
 
     // คำนวณความกว้างของ subtree แต่ละโหนด
     function calcWidth(node) {
@@ -399,9 +411,11 @@ function renderFamilyTree(members) {
         const x2  = cp.x + NODE_W / 2 + PAD;
         const y2  = cp.y + PAD;
         const mid = (y1 + y2) / 2;
+        const lineDelay = ((depths[m.parent_id] || 0) * ANIM_DELAY_PER_LEVEL + LINE_ANIM_BASE_DELAY).toFixed(2);
         lines.push(
-            `<path d="M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}"` +
-            ` stroke="#059669" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-opacity="0.75"/>`
+            `<path class="tree-line" d="M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}"` +
+            ` stroke="#059669" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-opacity="0.75"` +
+            ` style="animation-delay:${lineDelay}s"/>`
         );
     });
 
@@ -415,7 +429,7 @@ function renderFamilyTree(members) {
         const age         = calcAge(m.birth_date);
         const subText     = age ? `อายุ ${age} ปี` : (m.birth_date ? formatThaiDate(m.birth_date) : '');
 
-        return `<div class="tree-node" style="left:${pos.x + PAD}px;top:${pos.y + PAD}px;border-left-color:${accentColor};">
+        return `<div class="tree-node" style="left:${pos.x + PAD}px;top:${pos.y + PAD}px;border-left-color:${accentColor};animation-delay:${((depths[m.id] || 0) * ANIM_DELAY_PER_LEVEL).toFixed(2)}s">
             <div class="tree-node-name">${genderIcon} ${escapeHtml(fullName)}</div>
             ${subText ? `<div class="tree-node-sub">${escapeHtml(subText)}</div>` : ''}
         </div>`;
