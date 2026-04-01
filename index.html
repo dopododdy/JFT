@@ -579,17 +579,19 @@
             <div class="modal-drag-handle"></div>
             <h2 id="modal-title">➕ เพิ่มสมาชิกใหม่</h2>
             <form id="add-member-form" onsubmit="submitNewMember(event)">
+                <!-- คำนำหน้า + เพศ -->
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="f-firstname">ชื่อ *</label>
-                        <input type="text" id="f-firstname" placeholder="เช่น สมชาย" required />
+                        <label for="f-prefix">คำนำหน้า</label>
+                        <select id="f-prefix">
+                            <option value="">— ไม่ระบุ —</option>
+                            <option value="นาย">นาย</option>
+                            <option value="นาง">นาง</option>
+                            <option value="นางสาว">นางสาว</option>
+                            <option value="เด็กชาย">เด็กชาย</option>
+                            <option value="เด็กหญิง">เด็กหญิง</option>
+                        </select>
                     </div>
-                    <div class="form-group">
-                        <label for="f-lastname">นามสกุล</label>
-                        <input type="text" id="f-lastname" placeholder="เช่น จวงพลงาม" />
-                    </div>
-                </div>
-                <div class="form-row">
                     <div class="form-group">
                         <label for="f-gender">เพศ</label>
                         <select id="f-gender">
@@ -598,17 +600,92 @@
                             <option value="หญิง">หญิง</option>
                         </select>
                     </div>
+                </div>
+                <!-- ชื่อ + นามสกุลปัจจุบัน -->
+                <div class="form-row">
                     <div class="form-group">
-                        <label for="f-birthdate">วันเกิด</label>
-                        <input type="date" id="f-birthdate" />
+                        <label for="f-firstname">ชื่อปัจจุบัน *</label>
+                        <input type="text" id="f-firstname" placeholder="เช่น สมชาย" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="f-lastname">นามสกุลปัจจุบัน</label>
+                        <input type="text" id="f-lastname" placeholder="เช่น จวงพลงาม" />
                     </div>
                 </div>
+                <!-- ชื่อเดิม + นามสกุลเดิม -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="f-former-firstname">ชื่อเดิม</label>
+                        <input type="text" id="f-former-firstname" placeholder="ถ้ามี" />
+                    </div>
+                    <div class="form-group">
+                        <label for="f-former-lastname">นามสกุลเดิม</label>
+                        <input type="text" id="f-former-lastname" placeholder="ถ้ามี" />
+                    </div>
+                </div>
+                <!-- สถานะสมรส -->
+                <div class="form-group">
+                    <label for="f-marital">สถานะสมรส</label>
+                    <select id="f-marital">
+                        <option value="โสด">โสด</option>
+                        <option value="แต่งงาน">แต่งงาน</option>
+                        <option value="หม้าย">หม้าย</option>
+                        <option value="หย่า">หย่า</option>
+                    </select>
+                </div>
+                <!-- วันเกิด -->
+                <div class="form-group">
+                    <label for="f-birthdate">วันเดือนปีเกิด (พ.ศ.)</label>
+                    <input type="date" id="f-birthdate" oninput="updateDatePreview('f-birthdate','f-birthdate-preview')" />
+                    <div id="f-birthdate-preview" style="font-size:0.8rem;color:#059669;margin-top:0.2rem;min-height:1.1em;"></div>
+                </div>
+                <!-- สถานะ มีชีวิต/เสียชีวิต -->
+                <div class="form-group">
+                    <label>สถานะ</label>
+                    <div style="display:flex;gap:1.5rem;align-items:center;margin-top:0.25rem;">
+                        <label style="display:flex;align-items:center;gap:0.4rem;font-weight:normal;cursor:pointer;">
+                            <input type="radio" name="f-alive" id="f-alive-yes" value="yes" checked onchange="toggleDeathDate()" /> 🟢 มีชีวิต
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.4rem;font-weight:normal;cursor:pointer;">
+                            <input type="radio" name="f-alive" id="f-alive-no" value="no" onchange="toggleDeathDate()" /> ⚫ เสียชีวิต
+                        </label>
+                    </div>
+                </div>
+                <!-- วันที่เสียชีวิต (แสดงเฉพาะเมื่อเลือก เสียชีวิต) -->
+                <div class="form-group" id="f-deathdate-group" style="display:none;">
+                    <label for="f-deathdate">เสียชีวิตเมื่อวันที่ (พ.ศ.)</label>
+                    <input type="date" id="f-deathdate" oninput="updateDatePreview('f-deathdate','f-deathdate-preview')" />
+                    <div id="f-deathdate-preview" style="font-size:0.8rem;color:#6b7280;margin-top:0.2rem;min-height:1.1em;"></div>
+                </div>
+                <!-- เบอร์โทร + ไลน์ -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="f-phone">เบอร์โทรติดต่อ</label>
+                        <input type="tel" id="f-phone" placeholder="เช่น 08x-xxx-xxxx" />
+                    </div>
+                    <div class="form-group">
+                        <label for="f-line">ไลน์ (Line ID)</label>
+                        <input type="text" id="f-line" placeholder="เช่น @somchai" />
+                    </div>
+                </div>
+                <!-- สถานที่ทำงาน -->
+                <div class="form-group">
+                    <label for="f-workplace">สถานที่ทำงาน</label>
+                    <input type="text" id="f-workplace" placeholder="เช่น บริษัท ABC จำกัด" />
+                </div>
+                <!-- ที่อยู่ -->
+                <div class="form-group">
+                    <label for="f-address">ที่อยู่</label>
+                    <textarea id="f-address" rows="2" placeholder="เช่น 123/4 ถ.สุขุมวิท กรุงเทพฯ"></textarea>
+                </div>
+                <!-- ผู้ปกครอง -->
                 <div class="form-group">
                     <label for="f-parent">ผู้ปกครอง (บิดา/มารดา)</label>
                     <select id="f-parent">
                         <option value="">— ไม่มีผู้ปกครอง (รุ่นแรก) —</option>
                     </select>
                 </div>
+                <!-- ประวัติ -->
                 <div class="form-group">
                     <label for="f-bio">ประวัติสั้น ๆ</label>
                     <textarea id="f-bio" rows="2" placeholder="เช่น บิดาของตระกูล…"></textarea>
@@ -708,9 +785,28 @@
         function closeModal() {
             document.getElementById('modal-backdrop').classList.remove('open');
             document.getElementById('add-member-form').reset();
+            document.getElementById('f-deathdate-group').style.display = 'none';
+            document.getElementById('f-birthdate-preview').textContent  = '';
+            document.getElementById('f-deathdate-preview').textContent  = '';
         }
         function closeModalOnBackdrop(e) {
             if (e.target === document.getElementById('modal-backdrop')) closeModal();
+        }
+
+        /* ── Thai date preview ── */
+        function updateDatePreview(inputId, previewId) {
+            const val = document.getElementById(inputId).value;
+            document.getElementById(previewId).textContent = val ? formatThaiDate(val) : '';
+        }
+
+        /* ── Toggle death date field ── */
+        function toggleDeathDate() {
+            const isDead = document.getElementById('f-alive-no').checked;
+            document.getElementById('f-deathdate-group').style.display = isDead ? '' : 'none';
+            if (!isDead) {
+                document.getElementById('f-deathdate').value = '';
+                document.getElementById('f-deathdate-preview').textContent = '';
+            }
         }
 
         /* ── Toast ── */
@@ -775,7 +871,7 @@
 
             const member = (window._familyMembers || []).find(m => m.id === memberId);
             if (!member) return;
-            const fullName = `${member.first_name} ${member.last_name || ''}`.trim();
+            const fullName = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
             const genderIcon = member.gender === 'ชาย' ? '👨' : (member.gender === 'หญิง' ? '👩' : '👤');
 
             document.getElementById('relation-member-name').textContent = `${genderIcon} ${fullName}`;
@@ -797,7 +893,7 @@
             if (member.parent_id) {
                 const parent = (window._familyMembers || []).find(m => m.id === member.parent_id);
                 if (parent) {
-                    const pName = `${parent.first_name} ${parent.last_name || ''}`.trim();
+                    const pName = [parent.prefix, parent.first_name, parent.last_name].filter(Boolean).join(' ');
                     rows.push(`<div class="relation-existing-item">
                         <span><strong>ผู้ปกครอง:</strong> ${escapeHtml(pName)}</span>
                         <button data-remove-parent="${escapeHtml(memberId)}" title="ลบความสัมพันธ์นี้">✕</button>
@@ -807,7 +903,7 @@
 
             // ลูก (สมาชิกที่มี parent_id = memberId)
             (window._familyMembers || []).filter(m => m.parent_id === memberId).forEach(child => {
-                const cName = `${child.first_name} ${child.last_name || ''}`.trim();
+                const cName = [child.prefix, child.first_name, child.last_name].filter(Boolean).join(' ');
                 rows.push(`<div class="relation-existing-item">
                     <span><strong>ลูก:</strong> ${escapeHtml(cName)}</span>
                     <button data-remove-parent="${escapeHtml(child.id)}" title="ลบความสัมพันธ์นี้">✕</button>
@@ -822,7 +918,7 @@
                     const otherId = isFrom ? r.to_id : r.from_id;
                     const other = (window._familyMembers || []).find(m => m.id === otherId);
                     if (!other) return;
-                    const oName = `${other.first_name} ${other.last_name || ''}`.trim();
+                    const oName = [other.prefix, other.first_name, other.last_name].filter(Boolean).join(' ');
                     const label = isFrom ? r.relation : _reverseRelation(r.relation);
                     rows.push(`<div class="relation-existing-item">
                         <span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(oName)}</span>
@@ -859,7 +955,7 @@
             (window._familyMembers || [])
                 .filter(m => m.id !== _currentRelationMemberId)
                 .forEach(m => {
-                    const name = `${m.first_name} ${m.last_name || ''}`.trim();
+                    const name = [m.prefix, m.first_name, m.last_name].filter(Boolean).join(' ');
                     const opt = document.createElement('option');
                     opt.value = m.id;
                     opt.textContent = name;
@@ -906,12 +1002,23 @@
             btn.textContent = 'กำลังบันทึก…';
 
             const parentId = document.getElementById('f-parent').value || null;
+            const isAlive  = document.querySelector('input[name="f-alive"]:checked').value === 'yes';
             const payload = {
-                first_name: document.getElementById('f-firstname').value.trim(),
-                last_name:  document.getElementById('f-lastname').value.trim() || null,
-                gender:     document.getElementById('f-gender').value || null,
-                birth_date: document.getElementById('f-birthdate').value || null,
-                bio:        document.getElementById('f-bio').value.trim() || null,
+                prefix:             document.getElementById('f-prefix').value || null,
+                first_name:         document.getElementById('f-firstname').value.trim(),
+                last_name:          document.getElementById('f-lastname').value.trim() || null,
+                former_first_name:  document.getElementById('f-former-firstname').value.trim() || null,
+                former_last_name:   document.getElementById('f-former-lastname').value.trim() || null,
+                gender:             document.getElementById('f-gender').value || null,
+                birth_date:         document.getElementById('f-birthdate').value || null,
+                marital_status:     document.getElementById('f-marital').value || 'โสด',
+                is_alive:           isAlive,
+                death_date:         (!isAlive && document.getElementById('f-deathdate').value) ? document.getElementById('f-deathdate').value : null,
+                phone:              document.getElementById('f-phone').value.trim() || null,
+                line_id:            document.getElementById('f-line').value.trim() || null,
+                workplace:          document.getElementById('f-workplace').value.trim() || null,
+                address:            document.getElementById('f-address').value.trim() || null,
+                bio:                document.getElementById('f-bio').value.trim() || null,
                 ...(parentId ? { parent_id: parentId } : {}),
             };
 
