@@ -121,7 +121,7 @@ async function fetchFamilyMembers() {
 async function deleteMember(memberId, evt) {
     if (evt) evt.stopPropagation();
     const member = window._familyMembers.find(m => m.id === memberId);
-    const name = member ? `${member.first_name} ${member.last_name || ''}`.trim() : 'สมาชิกนี้';
+    const name = member ? [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ') : 'สมาชิกนี้';
     if (!confirm(`ต้องการลบ "${name}" ออกจากระบบหรือไม่?\n(ข้อมูลที่ลบแล้วไม่สามารถกู้คืนได้)`)) return;
     try {
         await ensureSignedIn();
@@ -206,15 +206,29 @@ function renderMemberCards(members) {
     }
 
     containerEl.innerHTML = members.map(member => {
-        const fullName    = `${member.first_name} ${member.last_name || ''}`.trim();
+        const displayName = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
+        const searchName  = `${member.first_name} ${member.last_name || ''}`.trim();
         const genderIcon  = member.gender === 'ชาย' ? '👨' : (member.gender === 'หญิง' ? '👩' : '👤');
         const accentColor = member.gender === 'ชาย' ? '#2563eb' : (member.gender === 'หญิง' ? '#db2777' : '#059669');
 
+        // ชื่อเดิม-นามสกุลเดิม
+        const formerName = [member.former_first_name, member.former_last_name].filter(Boolean).join(' ');
+
+        // สถานะมีชีวิต/เสียชีวิต
+        const isAlive = member.is_alive !== false; // default true if null/undefined
+        const aliveText = isAlive
+            ? '🟢 มีชีวิต'
+            : `⚫ เสียชีวิต${member.death_date ? ' เมื่อวันที่ ' + formatThaiDate(member.death_date) : ''}`;
+
+        // อายุ (แสดงเฉพาะกรณีมีชีวิตและมีวันเกิด)
+        const age = (isAlive && member.birth_date) ? calcAge(member.birth_date) : null;
+
+        // ผู้ปกครอง
         let parentText = '';
         if (member.parent_id) {
             const parent = window._familyMembers.find(m => m.id === member.parent_id);
             if (parent) {
-                const parentName = `${parent.first_name} ${parent.last_name || ''}`.trim();
+                const parentName = [parent.prefix, parent.first_name, parent.last_name].filter(Boolean).join(' ');
                 parentText = `<div><strong>ผู้ปกครอง:</strong> ${escapeHtml(parentName)}</div>`;
             }
         }
@@ -227,7 +241,7 @@ function renderMemberCards(members) {
                 const otherId = isFrom ? r.to_id : r.from_id;
                 const other = window._familyMembers.find(m => m.id === otherId);
                 if (!other) return '';
-                const otherName = `${other.first_name} ${other.last_name || ''}`.trim();
+                const otherName = [other.prefix, other.first_name, other.last_name].filter(Boolean).join(' ');
                 const label = isFrom ? r.relation : _reverseRelation(r.relation);
                 return `<span class="rel-tag">${escapeHtml(label)}: ${escapeHtml(otherName)}</span>`;
             })
@@ -235,14 +249,22 @@ function renderMemberCards(members) {
             .join('');
 
         return `
-            <div class="member-card" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(fullName.toLowerCase())}" style="border-left-color:${accentColor};">
+            <div class="member-card" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(searchName.toLowerCase())}" style="border-left-color:${accentColor};">
                 <div class="member-card-header">
-                    <h3 class="member-card-name">${genderIcon} ${escapeHtml(fullName)}</h3>
+                    <h3 class="member-card-name">${genderIcon} ${escapeHtml(displayName)}</h3>
                     <button class="btn-card-delete" data-member-id="${escapeHtml(member.id)}" title="ลบสมาชิก">🗑️ ลบ</button>
                 </div>
                 <div class="member-card-info">
+                    ${formerName ? `<div><strong>ชื่อเดิม:</strong> ${escapeHtml(formerName)}</div>` : ''}
+                    ${member.marital_status ? `<div><strong>สถานะสมรส:</strong> ${escapeHtml(member.marital_status)}</div>` : ''}
                     <div><strong>เพศ:</strong> ${escapeHtml(member.gender) || 'ไม่ระบุ'}</div>
-                    <div><strong>วันเกิด:</strong> ${formatThaiDate(member.birth_date)}</div>
+                    ${member.birth_date ? `<div><strong>วันเกิด:</strong> ${formatThaiDate(member.birth_date)}</div>` : ''}
+                    <div><strong>สถานะ:</strong> ${aliveText}</div>
+                    ${age ? `<div><strong>อายุ:</strong> ${age} ปี</div>` : ''}
+                    ${member.phone ? `<div><strong>เบอร์โทร:</strong> ${escapeHtml(member.phone)}</div>` : ''}
+                    ${member.workplace ? `<div><strong>สถานที่ทำงาน:</strong> ${escapeHtml(member.workplace)}</div>` : ''}
+                    ${member.address ? `<div><strong>ที่อยู่:</strong> ${escapeHtml(member.address)}</div>` : ''}
+                    ${member.line_id ? `<div><strong>ไลน์:</strong> ${escapeHtml(member.line_id)}</div>` : ''}
                     ${parentText}
                     ${relTags ? `<div class="rel-tags-wrap">${relTags}</div>` : ''}
                     ${member.bio ? `<div class="member-bio">"${escapeHtml(member.bio)}"</div>` : ''}
@@ -271,7 +293,7 @@ function populateParentDropdown(members) {
     const currentValue = select.value;
     select.innerHTML = '<option value="">— ไม่มีผู้ปกครอง (รุ่นแรก) —</option>';
     (members || []).forEach(m => {
-        const name = `${m.first_name} ${m.last_name || ''}`.trim();
+        const name = [m.prefix, m.first_name, m.last_name].filter(Boolean).join(' ');
         const opt  = document.createElement('option');
         opt.value       = m.id;
         opt.textContent = name;
@@ -387,7 +409,7 @@ function renderFamilyTree(members) {
     const nodesHtml = members.map(m => {
         if (!positions[m.id]) return '';
         const pos         = positions[m.id];
-        const fullName    = `${m.first_name} ${m.last_name || ''}`.trim();
+        const fullName    = [m.prefix, m.first_name, m.last_name].filter(Boolean).join(' ');
         const genderIcon  = m.gender === 'ชาย' ? '👨' : (m.gender === 'หญิง' ? '👩' : '👤');
         const accentColor = m.gender === 'ชาย' ? '#2563eb' : (m.gender === 'หญิง' ? '#db2777' : '#059669');
         const age         = calcAge(m.birth_date);
