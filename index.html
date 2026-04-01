@@ -285,6 +285,12 @@
             font-size: 0.72rem;
             margin-top: 3px;
         }
+        .tree-node-nickname {
+            color: #059669;
+            font-size: 0.72rem;
+            font-style: italic;
+            margin-top: 2px;
+        }
         .tree-hint {
             margin-top: 0.75rem;
             padding: 0.6rem 1rem;
@@ -626,6 +632,11 @@
                         <input type="text" id="f-lastname" placeholder="เช่น จวงพลงาม" />
                     </div>
                 </div>
+                <!-- ชื่อเล่น -->
+                <div class="form-group">
+                    <label for="f-nickname">ชื่อเล่น</label>
+                    <input type="text" id="f-nickname" placeholder="เช่น แดง, นิด, โอ๊ต" />
+                </div>
                 <!-- ชื่อเดิม + นามสกุลเดิม -->
                 <div class="form-row">
                     <div class="form-group">
@@ -782,7 +793,7 @@
                 searchBar.style.display = '';
             } else {
                 cardsView.style.display = 'none';
-                treeView.style.display  = '';
+                treeView.style.display  = 'block';
                 tabCards.classList.remove('active');
                 tabTree.classList.add('active');
                 searchBar.style.display = 'none';
@@ -1025,6 +1036,7 @@
                 last_name:          document.getElementById('f-lastname').value.trim() || null,
                 former_first_name:  document.getElementById('f-former-firstname').value.trim() || null,
                 former_last_name:   document.getElementById('f-former-lastname').value.trim() || null,
+                nickname:           document.getElementById('f-nickname').value.trim() || null,
                 gender:             document.getElementById('f-gender').value || null,
                 birth_date:         document.getElementById('f-birthdate').value || null,
                 marital_status:     document.getElementById('f-marital').value || 'โสด',

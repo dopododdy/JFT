@@ -99,7 +99,7 @@ async function fetchFamilyMembers() {
 
         // อัปเดตแผนผังถ้ากำลังแสดงอยู่
         const treeView = document.getElementById('tree-view');
-        if (treeView && treeView.style.display !== 'none') {
+        if (treeView && treeView.style.display === 'block') {
             renderFamilyTree(window._familyMembers);
         }
 
@@ -256,6 +256,7 @@ function renderMemberCards(members) {
                 </div>
                 <div class="member-card-info">
                     ${formerName ? `<div><strong>ชื่อเดิม:</strong> ${escapeHtml(formerName)}</div>` : ''}
+                    ${member.nickname ? `<div><strong>ชื่อเล่น:</strong> ${escapeHtml(member.nickname)}</div>` : ''}
                     ${member.marital_status ? `<div><strong>สถานะสมรส:</strong> ${escapeHtml(member.marital_status)}</div>` : ''}
                     <div><strong>เพศ:</strong> ${escapeHtml(member.gender) || 'ไม่ระบุ'}</div>
                     ${member.birth_date ? `<div><strong>วันเกิด:</strong> ${formatThaiDate(member.birth_date)}</div>` : ''}
@@ -431,6 +432,7 @@ function renderFamilyTree(members) {
 
         return `<div class="tree-node" style="left:${pos.x + PAD}px;top:${pos.y + PAD}px;border-left-color:${accentColor};animation-delay:${((depths[m.id] || 0) * ANIM_DELAY_PER_LEVEL).toFixed(2)}s">
             <div class="tree-node-name">${genderIcon} ${escapeHtml(fullName)}</div>
+            ${m.nickname ? `<div class="tree-node-nickname">(${escapeHtml(m.nickname)})</div>` : ''}
             ${subText ? `<div class="tree-node-sub">${escapeHtml(subText)}</div>` : ''}
         </div>`;
     }).join('');
