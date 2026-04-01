@@ -42,6 +42,8 @@ alter table profiles add column if not exists phone             text;
 alter table profiles add column if not exists workplace         text;
 alter table profiles add column if not exists address           text;
 alter table profiles add column if not exists line_id           text;
+alter table profiles add column if not exists parent_id         uuid references profiles(id);
+alter table profiles add column if not exists bio               text;
 ```
 
 ### ขั้นตอนที่ 3 — สร้าง (หรือสร้างใหม่) ตาราง `relationships`
