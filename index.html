@@ -974,8 +974,10 @@
             const toId = document.getElementById('relation-target-select').value;
             if (!toId) { showToast('⚠️ กรุณาเลือกสมาชิก', true); return; }
             if (!_currentRelationMemberId || !_currentRelationType) return;
+            const fromId = _currentRelationMemberId;
+            const relationType = _currentRelationType;
             closeRelationModal();
-            await saveRelationship(_currentRelationMemberId, toId, _currentRelationType);
+            await saveRelationship(fromId, toId, relationType);
         }
 
         async function removeParent(memberId) {
