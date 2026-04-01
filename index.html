@@ -266,6 +266,7 @@
             cursor: pointer;
             transition: box-shadow 0.2s, transform 0.15s;
             user-select: none;
+            animation: treeNodeIn 0.4s ease both;
         }
         .tree-node:hover {
             box-shadow: 0 6px 18px rgba(0,0,0,0.15);
@@ -292,6 +293,19 @@
             border-radius: 0.75rem;
             font-size: 0.82rem;
             color: #92400e;
+        }
+        @keyframes treeNodeIn {
+            from { opacity: 0; transform: translateY(-12px) scale(0.88); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes drawPath {
+            /* 1200 is larger than any connector path length in the tree */
+            from { stroke-dashoffset: 1200; }
+            to   { stroke-dashoffset: 0; }
+        }
+        .tree-line {
+            stroke-dasharray: 1200; /* single dash covering max path length */
+            animation: drawPath 0.55s ease both;
         }
 
         /* ───── Modal ───── */
