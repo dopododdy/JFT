@@ -299,12 +299,17 @@ function renderFamilyTree(members) {
 /**
  * ตรวจสอบว่ามี session อยู่แล้วหรือไม่ ถ้าไม่มีให้ sign-in แบบ anonymous
  * เพื่อให้ auth.uid() ไม่เป็น null ก่อน insert ข้อมูลลงตาราง
+ * หากโปรเจกต์ไม่ได้เปิด Anonymous Sign-in จะใช้ anon key แทนโดยไม่หยุดการทำงาน
  */
 async function ensureSignedIn() {
     const { data: { session } } = await _supabase.auth.getSession();
     if (!session) {
         const { error } = await _supabase.auth.signInAnonymously();
-        if (error) throw new Error('ไม่สามารถยืนยันตัวตนแบบ anonymous ได้: ' + error.message);
+        if (error) {
+            // Anonymous sign-in อาจไม่ได้เปิดใช้งานในโปรเจกต์ Supabase
+            // บันทึก warning และดำเนินการต่อโดยใช้ anon key แทน
+            console.warn(`Anonymous sign-in ไม่พร้อมใช้งาน (${error.message}) — ดำเนินการต่อด้วย anon key`);
+        }
     }
 }
 
