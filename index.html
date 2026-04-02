@@ -899,7 +899,7 @@
     <div class="hamburger-menu" id="hamburger-menu">
         <div class="hamburger-menu-inner">
             <input type="search" id="search-input" placeholder="🔍  ค้นหาชื่อสมาชิก..." oninput="filterMembers()" />
-            <button class="btn btn-secondary" onclick="openIdentityModal(); toggleMenu();">👤 กำหนดตัวตน</button>
+            <button class="btn btn-secondary" onclick="openIdentityModal(); toggleMenu();">🔍 สืบลำดับญาติ</button>
             <div class="status-box">
                 📡&nbsp; สถานะ:&nbsp;
                 <span id="connection-status">กำลังเชื่อมต่อ… ⏳</span>
@@ -910,7 +910,7 @@
     <!-- ░░ Toolbar ░░ -->
     <div class="toolbar">
         <button class="btn btn-primary" onclick="openModal()">➕ เพิ่มสมาชิก</button>
-        <button class="btn btn-secondary" onclick="openIdentityModal()">👤 กำหนดตัวตน</button>
+        <button class="btn btn-secondary" onclick="openIdentityModal()">🔍 สืบลำดับญาติ</button>
         <button class="btn btn-secondary" onclick="fetchFamilyMembers()">🔄 รีเฟรช</button>
     </div>
 
@@ -1559,7 +1559,8 @@
                 const inner = spouseBtn.closest('.card-flip-inner');
                 if (inner) {
                     const backFace = inner.querySelector('.card-face-back');
-                    if (backFace && backFace.offsetHeight > 0) inner.style.minHeight = backFace.offsetHeight + 'px';
+                    const backH = backFace ? backFace.scrollHeight : 0;
+                    if (backH > 0) inner.style.minHeight = backH + 'px';
                     inner.classList.add('flipped');
                 }
                 return;

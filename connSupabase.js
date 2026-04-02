@@ -796,7 +796,7 @@ function renderFamilyTree() {
         const ph = document.createElement('div');
         ph.className = 'state-placeholder';
         ph.style.cssText = 'border:none;border-radius:0;';
-        ph.innerHTML = '<div style="font-size:2.5rem;">👤</div><p>กรุณากำหนดตัวตนก่อน</p><small>เพื่อการแสดงผลแผนผังที่ถูกต้อง</small><br><button class="btn btn-primary" style="margin-top:1rem;" onclick="openIdentityModal()">👤 กำหนดตัวตน</button>';
+        ph.innerHTML = '<div style="font-size:2.5rem;">👤</div><p>กรุณากำหนดตัวตนก่อน</p><small>เพื่อการแสดงผลแผนผังที่ถูกต้อง</small><br><button class="btn btn-primary" style="margin-top:1rem;" onclick="openIdentityModal()">🔍 สืบลำดับญาติ</button>';
         container.appendChild(ph);
         return;
     }
@@ -825,37 +825,38 @@ function renderFamilyTree() {
     // ─── กำหนด Root ───
     const rootId = (identityId && byId[identityId]) ? identityId : members[0].id;
 
-    // ─── BFS เพื่อหาสมาชิกทั้งหมดที่มีความสัมพันธ์เชื่อมถึงกัน ───
+    // ─── BFS เฉพาะสายตรง: บรรพบุรุษและลูกหลานโดยตรงของ identity เท่านั้น ───
     // gen 0 = root, gen บวก = บรรพบุรุษ (ทางขวา), gen ลบ = ลูกหลาน (ทางซ้าย)
+    // direction: 'up' = ขึ้นหาบรรพบุรุษเท่านั้น, 'down' = ลงหาลูกหลานเท่านั้น, 'both' = root (ขึ้นลงได้ทั้งคู่)
     const MAX_ANCESTOR_DEPTH   = 5;
     const MAX_DESCENDANT_DEPTH = 5;
     const genOf = {};
     genOf[rootId] = 0;
-    const bfsQueue   = [rootId];
+    const bfsQueue   = [{ id: rootId, dir: 'both' }];
     const bfsVisited = new Set([rootId]);
 
     while (bfsQueue.length > 0) {
-        const id  = bfsQueue.shift();
+        const { id, dir } = bfsQueue.shift();
         const gen = genOf[id];
 
-        // พ่อ/แม่ → gen + 1 (บรรพบุรุษ)
-        if (gen < MAX_ANCESTOR_DEPTH) {
+        // พ่อ/แม่ → gen + 1 (บรรพบุรุษ) — เฉพาะเมื่อทิศทางเป็น 'up' หรือ 'both'
+        if (dir !== 'down' && gen < MAX_ANCESTOR_DEPTH) {
             [fatherOf[id], motherOf[id]].filter(Boolean).forEach(pid => {
                 if (!bfsVisited.has(pid)) {
                     bfsVisited.add(pid);
                     genOf[pid] = gen + 1;
-                    bfsQueue.push(pid);
+                    bfsQueue.push({ id: pid, dir: 'up' });
                 }
             });
         }
 
-        // ลูก → gen - 1 (ลูกหลาน)
-        if (gen > -MAX_DESCENDANT_DEPTH) {
+        // ลูก → gen - 1 (ลูกหลาน) — เฉพาะเมื่อทิศทางเป็น 'down' หรือ 'both'
+        if (dir !== 'up' && gen > -MAX_DESCENDANT_DEPTH) {
             (childrenOf[id] || []).forEach(cid => {
                 if (!bfsVisited.has(cid)) {
                     bfsVisited.add(cid);
                     genOf[cid] = gen - 1;
-                    bfsQueue.push(cid);
+                    bfsQueue.push({ id: cid, dir: 'down' });
                 }
             });
         }
