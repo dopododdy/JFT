@@ -763,6 +763,7 @@
                     <button class="tree-ctrl-btn" onclick="treeZoomIn()" title="ซูมเข้า">＋</button>
                     <button class="tree-ctrl-btn" onclick="treeZoomOut()" title="ซูมออก">－</button>
                     <button class="tree-ctrl-btn" onclick="treeZoomReset()" title="รีเซ็ตมุมมอง">⟳</button>
+                    <button class="tree-ctrl-btn" id="btn-hide-married-in" onclick="toggleHideMarriedIn()" title="ซ่อน/แสดงคู่สมรสที่ไม่มีบรรพบุรุษ">👁 คู่สมรส</button>
                 </div>
                 <div class="tree-legend">
                     <div class="tree-legend-row"><span class="tree-legend-line" style="background:#86efac;"></span> สายพ่อ-แม่</div>
@@ -1039,6 +1040,18 @@
             if (window._treeSvg && window._treeZoom) window._treeZoom.scaleBy(window._treeSvg, 0.77);
         }
         function treeZoomReset() {
+            if (typeof renderFamilyTree === 'function') renderFamilyTree();
+        }
+        function toggleHideMarriedIn() {
+            window._treeHideMarriedIn = !window._treeHideMarriedIn;
+            const btn = document.getElementById('btn-hide-married-in');
+            if (btn) {
+                btn.style.opacity     = window._treeHideMarriedIn ? '1' : '0.55';
+                btn.style.fontWeight  = window._treeHideMarriedIn ? '700' : '';
+                btn.title = window._treeHideMarriedIn
+                    ? 'แสดงคู่สมรสที่ไม่มีบรรพบุรุษ (ปัจจุบัน: ซ่อนอยู่)'
+                    : 'ซ่อนคู่สมรสที่ไม่มีบรรพบุรุษ (ปัจจุบัน: แสดงอยู่)';
+            }
             if (typeof renderFamilyTree === 'function') renderFamilyTree();
         }
 
