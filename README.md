@@ -24,6 +24,7 @@ create table if not exists profiles (
   nickname          text,
   parent_id         uuid         references profiles(id),
   bio               text,
+  photo_url         text,
   created_at        timestamptz  not null default now()
 );
 ```
@@ -46,6 +47,7 @@ alter table profiles add column if not exists line_id           text;
 alter table profiles add column if not exists nickname          text;
 alter table profiles add column if not exists parent_id         uuid references profiles(id);
 alter table profiles add column if not exists bio               text;
+alter table profiles add column if not exists photo_url         text;
 ```
 
 ### ขั้นตอนที่ 3 — สร้าง (หรือสร้างใหม่) ตาราง `relationships`
@@ -72,7 +74,7 @@ create table relationships (
 
 | ตาราง | คอลัมน์หลัก |
 |---|---|
-| `profiles` | `id`, `prefix`, `first_name`, `last_name`, `former_first_name`, `former_last_name`, `gender`, `birth_date`, `marital_status`, `is_alive`, `death_date`, `phone`, `workplace`, `address`, `line_id`, `nickname`, `parent_id`, `bio`, `created_at` |
+| `profiles` | `id`, `prefix`, `first_name`, `last_name`, `former_first_name`, `former_last_name`, `gender`, `birth_date`, `marital_status`, `is_alive`, `death_date`, `phone`, `workplace`, `address`, `line_id`, `nickname`, `parent_id`, `bio`, `photo_url`, `created_at` |
 | `relationships` | `id`, `from_id`, `to_id`, `relation`, `created_at` |
 
 > **หมายเหตุ:** หากไม่สร้างตาราง `relationships` ฟีเจอร์การเชื่อมความสัมพันธ์ประเภท "พี่", "น้อง", "สามี/ภรรยา" จะไม่สามารถบันทึกข้อมูลได้ แต่ระบบยังคงใช้งานได้สำหรับความสัมพันธ์ประเภท "พ่อ", "แม่", และ "ลูก" (ซึ่งใช้ฟิลด์ `parent_id`)
