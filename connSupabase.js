@@ -283,24 +283,24 @@ function renderMemberCards(members) {
             : `<div class="wf-photo wf-photo-ph" style="width:${size}px;height:${size}px;">👤</div>`;
     }
 
-    // การ์ดสมาชิกเดี่ยว (individual)
-    function _singleCard(m) {
-        const alive   = m.is_alive !== false;
-        const accent  = m.gender === 'ชาย' ? '#2563eb' : m.gender === 'หญิง' ? '#db2777' : '#059669';
+    // การ์ดสมาชิก (ใช้สำหรับทั้งด้านหน้าและด้านหลังของ flip card)
+    function _memberCardHtml(member, opts) {
+        const alive   = member.is_alive !== false;
+        const accent  = member.gender === 'ชาย' ? '#2563eb' : member.gender === 'หญิง' ? '#db2777' : '#059669';
         const bg      = alive
-            ? (m.gender === 'ชาย' ? '#eff6ff' : m.gender === 'หญิง' ? '#fdf2f8' : '#ffffff')
+            ? (member.gender === 'ชาย' ? '#eff6ff' : member.gender === 'หญิง' ? '#fdf2f8' : '#ffffff')
             : '#f3f4f6';
-        const name    = [m.prefix, m.first_name, m.last_name].filter(Boolean).join(' ');
-        const display = name + (m.nickname ? ` (${m.nickname})` : '');
-        const search  = `${m.first_name || ''} ${m.last_name || ''}`.trim();
-        const age     = (alive && m.birth_date) ? calcAge(m.birth_date) : null;
+        const name    = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
+        const display = name + (member.nickname ? ` (${member.nickname})` : '');
+        const search  = `${member.first_name || ''} ${member.last_name || ''}`.trim();
+        const age     = (alive && member.birth_date) ? calcAge(member.birth_date) : null;
         const aliveText = alive
             ? '🟢 มีชีวิต'
-            : `⚫ เสียชีวิต${m.death_date ? ' ' + formatThaiDate(m.death_date) : ''}`;
-        const former  = [m.former_first_name, m.former_last_name].filter(Boolean).join(' ');
+            : `⚫ เสียชีวิต${member.death_date ? ' ' + formatThaiDate(member.death_date) : ''}`;
+        const former  = [member.former_first_name, member.former_last_name].filter(Boolean).join(' ');
 
-        const fRel = rels.find(r => r.from_id === m.id && r.relation === 'พ่อ'  && memberById[r.to_id]);
-        const mRel = rels.find(r => r.from_id === m.id && r.relation === 'แม่' && memberById[r.to_id]);
+        const fRel = rels.find(r => r.from_id === member.id && r.relation === 'พ่อ'  && memberById[r.to_id]);
+        const mRel = rels.find(r => r.from_id === member.id && r.relation === 'แม่' && memberById[r.to_id]);
         let parentText = '';
         if (fRel) {
             const f = memberById[fRel.to_id];
@@ -310,17 +310,17 @@ function renderMemberCards(members) {
             const mo = memberById[mRel.to_id];
             parentText += `<div><strong>แม่:</strong> ${escapeHtml([mo.prefix, mo.first_name, mo.last_name].filter(Boolean).join(' '))}</div>`;
         }
-        if (!fRel && !mRel && m.parent_id) {
-            const par = memberById[m.parent_id];
+        if (!fRel && !mRel && member.parent_id) {
+            const par = memberById[member.parent_id];
             if (par) parentText = `<div><strong>ผู้ปกครอง:</strong> ${escapeHtml([par.prefix, par.first_name, par.last_name].filter(Boolean).join(' '))}</div>`;
         }
 
         // ป้ายความสัมพันธ์อื่นๆ (ยกเว้น พ่อ/แม่/สามี/ภรรยา)
         const relTags = rels
-            .filter(r => (r.from_id === m.id || r.to_id === m.id) &&
+            .filter(r => (r.from_id === member.id || r.to_id === member.id) &&
                          !['พ่อ','แม่','ลูก','สามี','ภรรยา','สามี/ภรรยา'].includes(r.relation))
             .map(r => {
-                const isFrom = r.from_id === m.id;
+                const isFrom = r.from_id === member.id;
                 const o = memberById[isFrom ? r.to_id : r.from_id];
                 if (!o) return '';
                 const oName  = [o.prefix, o.first_name, o.last_name].filter(Boolean).join(' ');
@@ -329,76 +329,61 @@ function renderMemberCards(members) {
             })
             .filter(Boolean).join('');
 
-        return `<div class="member-card${alive ? '' : ' deceased'}" data-id="${escapeHtml(m.id)}" data-name="${escapeHtml(search.toLowerCase())}" style="border-left-color:${accent};background-color:${bg};">
+        const footer = opts.isBack
+            ? `<div class="member-card-footer">
+                <button class="btn-card-back-flip">◀ กลับ</button>
+                <div class="card-btn-group">
+                    <button class="btn-card-edit"   data-member-id="${escapeHtml(member.id)}">✏️ แก้ไข</button>
+                    <button class="btn-card-delete" data-member-id="${escapeHtml(member.id)}">🗑️ ลบ</button>
+                </div>
+              </div>`
+            : `<div class="member-card-footer">
+                <span class="card-hint">🔗 คลิกเพื่อจัดการความสัมพันธ์</span>
+                <div class="card-btn-group">
+                    ${opts.showSpouseBtn ? `<button class="btn-card-spouse">💑 คู่สมรส</button>` : ''}
+                    <button class="btn-card-edit"   data-member-id="${escapeHtml(member.id)}">✏️ แก้ไข</button>
+                    <button class="btn-card-delete" data-member-id="${escapeHtml(member.id)}">🗑️ ลบ</button>
+                </div>
+              </div>`;
+
+        return `<div class="member-card${alive ? '' : ' deceased'}" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(search.toLowerCase())}" style="border-left-color:${accent};background-color:${bg};">
+            ${opts.isBack ? `<div class="card-spouse-label">💑 คู่สมรส</div>` : ''}
             <div class="member-card-header">
                 <div class="member-card-title">
                     <h3 class="member-card-name">${escapeHtml(display)}</h3>
-                    ${_kinshipHtml(m.id)}
+                    ${_kinshipHtml(member.id)}
                 </div>
-                ${_photoHtml(m, 56)}
+                ${_photoHtml(member, 56)}
             </div>
             <div class="member-card-info">
                 ${former ? `<div><strong>ชื่อเดิม:</strong> ${escapeHtml(former)}</div>` : ''}
-                ${m.marital_status ? `<div><strong>สถานะสมรส:</strong> ${escapeHtml(m.marital_status)}</div>` : ''}
-                <div><strong>เพศ:</strong> ${escapeHtml(m.gender) || 'ไม่ระบุ'}</div>
-                ${m.birth_date ? `<div><strong>วันเกิด:</strong> ${formatThaiDate(m.birth_date)}</div>` : ''}
+                ${member.marital_status ? `<div><strong>สถานะสมรส:</strong> ${escapeHtml(member.marital_status)}</div>` : ''}
+                <div><strong>เพศ:</strong> ${escapeHtml(member.gender) || 'ไม่ระบุ'}</div>
+                ${member.birth_date ? `<div><strong>วันเกิด:</strong> ${formatThaiDate(member.birth_date)}</div>` : ''}
                 <div><strong>สถานะ:</strong> ${aliveText}</div>
                 ${age ? `<div><strong>อายุ:</strong> ${age} ปี</div>` : ''}
-                ${m.phone     ? `<div><strong>โทร:</strong> ${escapeHtml(m.phone)}</div>`               : ''}
-                ${m.workplace ? `<div><strong>สถานที่ทำงาน:</strong> ${escapeHtml(m.workplace)}</div>` : ''}
-                ${m.address   ? `<div><strong>ที่อยู่:</strong> ${escapeHtml(m.address)}</div>`         : ''}
-                ${m.line_id   ? `<div><strong>ไลน์:</strong> ${escapeHtml(m.line_id)}</div>`            : ''}
+                ${member.phone     ? `<div><strong>โทร:</strong> ${escapeHtml(member.phone)}</div>`               : ''}
+                ${member.workplace ? `<div><strong>สถานที่ทำงาน:</strong> ${escapeHtml(member.workplace)}</div>` : ''}
+                ${member.address   ? `<div><strong>ที่อยู่:</strong> ${escapeHtml(member.address)}</div>`         : ''}
+                ${member.line_id   ? `<div><strong>ไลน์:</strong> ${escapeHtml(member.line_id)}</div>`            : ''}
                 ${parentText}
                 ${relTags ? `<div class="rel-tags-wrap">${relTags}</div>` : ''}
-                ${m.bio ? `<div class="member-bio">"${escapeHtml(m.bio)}"</div>` : ''}
+                ${member.bio ? `<div class="member-bio">"${escapeHtml(member.bio)}"</div>` : ''}
             </div>
-            <div class="member-card-footer">
-                <span class="card-hint">🔗 คลิกเพื่อจัดการความสัมพันธ์</span>
-                <div class="card-btn-group">
-                    <button class="btn-card-edit"   data-member-id="${escapeHtml(m.id)}">✏️ แก้ไข</button>
-                    <button class="btn-card-delete" data-member-id="${escapeHtml(m.id)}">🗑️ ลบ</button>
-                </div>
-            </div>
+            ${footer}
         </div>`;
     }
 
-    // ครึ่งหนึ่งของการ์ดคู่สมรส
-    function _couplePersonHalf(m) {
-        const alive  = m.is_alive !== false;
-        const accent = m.gender === 'ชาย' ? '#2563eb' : m.gender === 'หญิง' ? '#db2777' : '#059669';
-        const bg     = alive
-            ? (m.gender === 'ชาย' ? '#eff6ff' : m.gender === 'หญิง' ? '#fdf2f8' : '#f8fafc')
-            : '#f3f4f6';
-        const name    = [m.prefix, m.first_name, m.last_name].filter(Boolean).join(' ');
-        const display = name + (m.nickname ? ` (${m.nickname})` : '');
-        const search  = `${m.first_name || ''} ${m.last_name || ''}`.trim();
-        const age     = (alive && m.birth_date) ? calcAge(m.birth_date) : null;
-        return `<div class="couple-person" data-id="${escapeHtml(m.id)}" data-name="${escapeHtml(search.toLowerCase())}" style="background:${bg};">
-            <div class="couple-person-top">
-                ${_photoHtml(m, 48)}
-                <div class="couple-person-info">
-                    <div class="couple-person-name" style="color:${accent};">${escapeHtml(display)}</div>
-                    ${_kinshipHtml(m.id)}
-                    ${m.birth_date ? `<div class="couple-person-detail">${formatThaiDate(m.birth_date)}${age ? ` · ${age} ปี` : ''}</div>` : ''}
-                    <div class="couple-person-detail">${alive ? '🟢' : '⚫'} ${m.gender ? escapeHtml(m.gender) : 'ไม่ระบุ'}${!alive && m.death_date ? ' · ' + formatThaiDate(m.death_date) : ''}</div>
-                    ${m.phone ? `<div class="couple-person-detail">📞 ${escapeHtml(m.phone)}</div>` : ''}
-                </div>
-            </div>
-            <div class="couple-person-actions">
-                <button class="btn-card-edit"   data-member-id="${escapeHtml(m.id)}" title="แก้ไข">✏️ แก้ไข</button>
-                <button class="btn-card-delete" data-member-id="${escapeHtml(m.id)}" title="ลบ">🗑️ ลบ</button>
-            </div>
-        </div>`;
-    }
+    // การ์ดสมาชิกเดี่ยว — ถ้ามีคู่สมรสจะห่อด้วย flip card
+    function _singleCard(m, spouse) {
+        const frontHtml = _memberCardHtml(m, { showSpouseBtn: !!spouse });
+        if (!spouse) return frontHtml;
 
-    // การ์ดคู่สมรส
-    function _coupleCard(m1, m2) {
-        return `<div class="couple-card">
-            <div class="couple-card-header">💑 คู่สมรส</div>
-            <div class="couple-card-body">
-                ${_couplePersonHalf(m1)}
-                <div class="couple-divider">♡</div>
-                ${_couplePersonHalf(m2)}
+        const backHtml = _memberCardHtml(spouse, { isBack: true });
+        return `<div class="card-flip-wrap">
+            <div class="card-flip-inner">
+                <div class="card-face card-face-front">${frontHtml}</div>
+                <div class="card-face card-face-back">${backHtml}</div>
             </div>
         </div>`;
     }
@@ -430,7 +415,7 @@ function renderMemberCards(members) {
         const hasChildren = children.length > 0;
         const nid = `wf-${++nodeCounter}`;
 
-        const card = spouse ? _coupleCard(m, spouse) : _singleCard(m);
+        const card = _singleCard(m, spouse);
 
         let toggleHtml = '';
         let childrenHtml = '';
