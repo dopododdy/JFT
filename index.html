@@ -176,33 +176,6 @@
             cursor: pointer;
         }
         .member-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.13); transform: translateY(-2px); }
-        .member-card-header {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 0.5rem;
-            margin-bottom: 8px;
-        }
-        .member-card-name {
-            margin: 0;
-            color: #1e293b;
-            font-size: 1rem;
-            flex: 1;
-        }
-        .btn-card-delete {
-            flex-shrink: 0;
-            padding: 0.25rem 0.55rem;
-            border: 1.5px solid #fecaca;
-            border-radius: 0.5rem;
-            background: #fff5f5;
-            color: #b91c1c;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s, border-color 0.15s;
-            white-space: nowrap;
-        }
-        .btn-card-delete:hover { background: #fee2e2; border-color: #f87171; }
         .member-card-info {
             font-size: 0.85rem;
             color: #475569;
@@ -519,6 +492,164 @@
         }
         .fab:active { transform: scale(0.93); }
 
+        /* ───── Card Action Buttons ───── */
+        .card-btn-group {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .btn-card-delete {
+            flex-shrink: 0;
+            padding: 0.25rem 0.55rem;
+            border: 1.5px solid #fecaca;
+            border-radius: 0.5rem;
+            background: #fff5f5;
+            color: #b91c1c;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .btn-card-delete:hover { background: #fee2e2; border-color: #f87171; }
+        .btn-card-edit {
+            flex-shrink: 0;
+            padding: 0.25rem 0.55rem;
+            border: 1.5px solid #bfdbfe;
+            border-radius: 0.5rem;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .btn-card-edit:hover { background: #dbeafe; border-color: #93c5fd; }
+
+        /* ───── Member Photo ───── */
+        .member-photo {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 2px solid #d1fae5;
+        }
+        .member-photo-placeholder {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #f0fdf4;
+            border: 2px solid #d1fae5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+        .member-card-title { flex: 1; min-width: 0; }
+        .member-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 8px;
+        }
+        .member-card-name {
+            margin: 0;
+            color: #1e293b;
+            font-size: 1rem;
+        }
+
+        /* ───── Kinship Label ───── */
+        .kinship-label {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+            border-radius: 1rem;
+            font-size: 0.72rem;
+            padding: 1px 8px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+        .kinship-label.kinship-self {
+            background: #d1fae5;
+            color: #065f46;
+            border-color: #6ee7b7;
+        }
+        .tree-node-kinship {
+            color: #92400e;
+            font-size: 0.68rem;
+            font-weight: 700;
+            margin-top: 3px;
+            background: #fef3c7;
+            border-radius: 0.75rem;
+            padding: 0 6px;
+            display: inline-block;
+        }
+        .tree-kinship-self {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        /* ───── Identity Bar ───── */
+        .identity-bar {
+            max-width: 900px;
+            margin: 0.5rem auto 0;
+            padding: 0 1rem;
+        }
+        .identity-bar-inner {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: #fffbeb;
+            border: 1.5px solid #fde68a;
+            border-radius: 0.75rem;
+            padding: 0.5rem 0.9rem;
+            font-size: 0.85rem;
+            color: #78350f;
+            flex-wrap: wrap;
+        }
+        .identity-bar-inner strong { color: #92400e; }
+        .btn-identity-action {
+            padding: 0.2rem 0.6rem;
+            border-radius: 1rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1.5px solid;
+            transition: background 0.15s;
+        }
+        .btn-identity-change {
+            background: #fef3c7;
+            color: #78350f;
+            border-color: #fde68a;
+        }
+        .btn-identity-change:hover { background: #fde68a; }
+        .btn-identity-clear {
+            background: #fff;
+            color: #9ca3af;
+            border-color: #e5e7eb;
+        }
+        .btn-identity-clear:hover { background: #f9fafb; color: #6b7280; }
+
+        /* ───── Photo upload preview ───── */
+        .photo-upload-preview {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        .photo-upload-img {
+            width: 72px;
+            height: 72px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 2px solid #d1fae5;
+        }
+
         /* ───── Responsive ───── */
         @media (max-width: 600px) {
             .form-row { grid-template-columns: 1fr; }
@@ -545,6 +676,7 @@
     <div class="toolbar">
         <input type="search" id="search-input" placeholder="🔍  ค้นหาชื่อสมาชิก..." oninput="filterMembers()" />
         <button class="btn btn-primary" onclick="openModal()">➕ เพิ่มสมาชิก</button>
+        <button class="btn btn-secondary" onclick="openIdentityModal()">👤 กำหนดตัวตน</button>
         <button class="btn btn-secondary" onclick="fetchFamilyMembers()">🔄 รีเฟรช</button>
     </div>
 
@@ -553,6 +685,15 @@
         <div class="status-box">
             📡&nbsp; สถานะ:&nbsp;
             <span id="connection-status">กำลังเชื่อมต่อ… ⏳</span>
+        </div>
+    </div>
+
+    <!-- ░░ Identity Bar ░░ -->
+    <div class="identity-bar" id="identity-bar" style="display:none;">
+        <div class="identity-bar-inner">
+            <span>👤 ตัวตนของคุณ: <strong id="identity-bar-name"></strong></span>
+            <button class="btn-identity-action btn-identity-change" onclick="openIdentityModal()">🔄 เปลี่ยน</button>
+            <button class="btn-identity-action btn-identity-clear" onclick="clearIdentity()">✕ ล้าง</button>
         </div>
     </div>
 
@@ -603,14 +744,16 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="f-prefix">คำนำหน้า</label>
-                        <select id="f-prefix">
-                            <option value="">— ไม่ระบุ —</option>
-                            <option value="นาย">นาย</option>
-                            <option value="นาง">นาง</option>
-                            <option value="นางสาว">นางสาว</option>
-                            <option value="เด็กชาย">เด็กชาย</option>
-                            <option value="เด็กหญิง">เด็กหญิง</option>
-                        </select>
+                        <input type="text" id="f-prefix" list="f-prefix-list" placeholder="เช่น นาย, นาง, ด.ช." />
+                        <datalist id="f-prefix-list">
+                            <option value="นาย">
+                            <option value="นาง">
+                            <option value="นางสาว">
+                            <option value="เด็กชาย">
+                            <option value="เด็กหญิง">
+                            <option value="ด.ช.">
+                            <option value="ด.ญ.">
+                        </datalist>
                     </div>
                     <div class="form-group">
                         <label for="f-gender">เพศ</label>
@@ -710,6 +853,15 @@
                         <option value="">— ไม่มีผู้ปกครอง (รุ่นแรก) —</option>
                     </select>
                 </div>
+                <!-- รูปภาพ -->
+                <div class="form-group">
+                    <label for="f-photo">รูปภาพ</label>
+                    <input type="file" id="f-photo" accept="image/*" onchange="previewPhoto()" style="min-height:auto;padding:0.4rem;" />
+                    <div id="f-photo-preview-wrap" class="photo-upload-preview" style="display:none;">
+                        <img id="f-photo-preview" class="photo-upload-img" alt="ตัวอย่างรูป" />
+                        <span id="f-photo-label" style="font-size:0.78rem;color:#059669;"></span>
+                    </div>
+                </div>
                 <!-- ประวัติ -->
                 <div class="form-group">
                     <label for="f-bio">ประวัติสั้น ๆ</label>
@@ -738,7 +890,7 @@
                     <button class="btn-rel-type" onclick="selectRelationType('แม่')">👩 แม่</button>
                     <button class="btn-rel-type" onclick="selectRelationType('พี่')">🧑 พี่</button>
                     <button class="btn-rel-type" onclick="selectRelationType('น้อง')">🧒 น้อง</button>
-                    <button class="btn-rel-type" onclick="selectRelationType('สามี/ภรรยา')">💑 สามี/ภรรยา</button>
+                    <button class="btn-rel-type" id="btn-rel-spouse" onclick="selectRelationType('สามี/ภรรยา')">💑 สามี/ภรรยา</button>
                     <button class="btn-rel-type" onclick="selectRelationType('ลูก')">👶 ลูก</button>
                 </div>
 
@@ -767,6 +919,25 @@
 
             <div class="modal-actions" style="margin-top:1rem;">
                 <button class="btn btn-secondary" onclick="closeRelationModal()">ปิด</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ░░ Identity Modal ░░ -->
+    <div class="modal-backdrop" id="identity-modal-backdrop" onclick="closeIdentityModalOnBackdrop(event)">
+        <div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-drag-handle"></div>
+            <h2>👤 กำหนดตัวตน</h2>
+            <p style="font-size:0.85rem;color:#64748b;margin-bottom:0.9rem;">เลือกว่าคุณเป็นบุคคลใดในแผนผังครอบครัว<br>เพื่อแสดงความสัมพันธ์ของบุคคลอื่นกับตัวคุณ</p>
+            <div class="form-group">
+                <label for="identity-select">เลือกตัวตน</label>
+                <select id="identity-select">
+                    <option value="">— เลือกบุคคล —</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeIdentityModal()">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="confirmIdentity()">✅ กำหนด</button>
             </div>
         </div>
     </div>
@@ -802,20 +973,93 @@
         }
 
         /* ── Modal helpers ── */
-        function openModal() {
+        let _editMemberId = null;
+
+        function openModal(memberId) {
+            _editMemberId = memberId || null;
             populateParentDropdown(window._familyMembers || []);
+
+            if (_editMemberId) {
+                const member = (window._familyMembers || []).find(m => m.id === _editMemberId);
+                if (member) _fillEditForm(member);
+                document.getElementById('modal-title').textContent = '✏️ แก้ไขข้อมูลสมาชิก';
+                document.getElementById('submit-btn').textContent  = 'บันทึกการแก้ไข';
+            } else {
+                document.getElementById('modal-title').textContent = '➕ เพิ่มสมาชิกใหม่';
+                document.getElementById('submit-btn').textContent  = 'บันทึก';
+            }
+
             document.getElementById('modal-backdrop').classList.add('open');
             setTimeout(() => document.getElementById('f-firstname').focus(), 300);
         }
+
+        function _fillEditForm(member) {
+            document.getElementById('f-prefix').value           = member.prefix || '';
+            document.getElementById('f-firstname').value        = member.first_name || '';
+            document.getElementById('f-lastname').value         = member.last_name || '';
+            document.getElementById('f-nickname').value         = member.nickname || '';
+            document.getElementById('f-former-firstname').value = member.former_first_name || '';
+            document.getElementById('f-former-lastname').value  = member.former_last_name || '';
+            document.getElementById('f-gender').value           = member.gender || '';
+            document.getElementById('f-marital').value          = member.marital_status || 'โสด';
+            document.getElementById('f-birthdate').value        = member.birth_date || '';
+            document.getElementById('f-phone').value            = member.phone || '';
+            document.getElementById('f-line').value             = member.line_id || '';
+            document.getElementById('f-workplace').value        = member.workplace || '';
+            document.getElementById('f-address').value          = member.address || '';
+            document.getElementById('f-bio').value              = member.bio || '';
+            document.getElementById('f-parent').value           = member.parent_id || '';
+
+            if (member.is_alive === false) {
+                document.getElementById('f-alive-no').checked = true;
+                document.getElementById('f-deathdate-group').style.display = '';
+                document.getElementById('f-deathdate').value = member.death_date || '';
+            } else {
+                document.getElementById('f-alive-yes').checked = true;
+                document.getElementById('f-deathdate-group').style.display = 'none';
+                document.getElementById('f-deathdate').value = '';
+            }
+
+            // แสดงรูปภาพปัจจุบัน
+            if (member.photo_url) {
+                document.getElementById('f-photo-preview').src = member.photo_url;
+                document.getElementById('f-photo-label').textContent = 'รูปปัจจุบัน (เลือกไฟล์ใหม่เพื่อเปลี่ยน)';
+                document.getElementById('f-photo-preview-wrap').style.display = '';
+            } else {
+                document.getElementById('f-photo-preview-wrap').style.display = 'none';
+            }
+
+            updateDatePreview('f-birthdate', 'f-birthdate-preview');
+            updateDatePreview('f-deathdate', 'f-deathdate-preview');
+        }
+
         function closeModal() {
+            _editMemberId = null;
             document.getElementById('modal-backdrop').classList.remove('open');
             document.getElementById('add-member-form').reset();
-            document.getElementById('f-deathdate-group').style.display = 'none';
+            document.getElementById('f-deathdate-group').style.display  = 'none';
             document.getElementById('f-birthdate-preview').textContent  = '';
             document.getElementById('f-deathdate-preview').textContent  = '';
+            document.getElementById('f-photo').value                    = '';
+            document.getElementById('f-photo-preview-wrap').style.display = 'none';
+            document.getElementById('modal-title').textContent = '➕ เพิ่มสมาชิกใหม่';
+            document.getElementById('submit-btn').textContent  = 'บันทึก';
         }
         function closeModalOnBackdrop(e) {
             if (e.target === document.getElementById('modal-backdrop')) closeModal();
+        }
+
+        /* ── Photo preview ── */
+        function previewPhoto() {
+            const file = document.getElementById('f-photo').files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                document.getElementById('f-photo-preview').src = ev.target.result;
+                document.getElementById('f-photo-label').textContent = file.name;
+                document.getElementById('f-photo-preview-wrap').style.display = '';
+            };
+            reader.readAsDataURL(file);
         }
 
         /* ── Thai date preview ── */
@@ -854,7 +1098,7 @@
 
         /* ── Keyboard close ── */
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') { closeModal(); closeRelationModal(); }
+            if (e.key === 'Escape') { closeModal(); closeRelationModal(); closeIdentityModal(); }
         });
 
         /* ── Relation Modal ── */
@@ -863,6 +1107,13 @@
 
         // Event delegation for member cards
         document.addEventListener('click', function(e) {
+            // Edit button on card
+            const editBtn = e.target.closest('.btn-card-edit');
+            if (editBtn) {
+                e.stopPropagation();
+                openModal(editBtn.dataset.memberId);
+                return;
+            }
             // Delete button on card
             const deleteBtn = e.target.closest('.btn-card-delete');
             if (deleteBtn) {
@@ -896,10 +1147,23 @@
 
             const member = (window._familyMembers || []).find(m => m.id === memberId);
             if (!member) return;
-            const fullName = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
+            const fullName   = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
             const genderIcon = member.gender === 'ชาย' ? '👨' : (member.gender === 'หญิง' ? '👩' : '👤');
 
             document.getElementById('relation-member-name').textContent = `${genderIcon} ${fullName}`;
+
+            // ปรับปุ่มสามี/ภรรยา ตามเพศของ card
+            const spouseBtn = document.getElementById('btn-rel-spouse');
+            if (member.gender === 'ชาย') {
+                spouseBtn.textContent = '💑 ภรรยา';
+                spouseBtn.onclick = () => selectRelationType('ภรรยา');
+            } else if (member.gender === 'หญิง') {
+                spouseBtn.textContent = '💑 สามี';
+                spouseBtn.onclick = () => selectRelationType('สามี');
+            } else {
+                spouseBtn.textContent = '💑 สามี/ภรรยา';
+                spouseBtn.onclick = () => selectRelationType('สามี/ภรรยา');
+            }
 
             // ซ่อน step2
             document.getElementById('relation-step2').classList.remove('visible');
@@ -939,9 +1203,9 @@
             (window._relationships || [])
                 .filter(r => r.from_id === memberId || r.to_id === memberId)
                 .forEach(r => {
-                    const isFrom = r.from_id === memberId;
+                    const isFrom  = r.from_id === memberId;
                     const otherId = isFrom ? r.to_id : r.from_id;
-                    const other = (window._familyMembers || []).find(m => m.id === otherId);
+                    const other   = (window._familyMembers || []).find(m => m.id === otherId);
                     if (!other) return;
                     const oName = [other.prefix, other.first_name, other.last_name].filter(Boolean).join(' ');
                     const label = isFrom ? r.relation : _reverseRelation(r.relation);
@@ -969,8 +1233,8 @@
 
         function selectRelationType(type) {
             _currentRelationType = type;
-            const step2 = document.getElementById('relation-step2');
-            const titleEl = document.getElementById('relation-step2-title');
+            const step2    = document.getElementById('relation-step2');
+            const titleEl  = document.getElementById('relation-step2-title');
             const selectEl = document.getElementById('relation-target-select');
 
             titleEl.textContent = `เลือกสมาชิกที่เป็น "${type}" ของบุคคลนี้:`;
@@ -999,7 +1263,7 @@
             const toId = document.getElementById('relation-target-select').value;
             if (!toId) { showToast('⚠️ กรุณาเลือกสมาชิก', true); return; }
             if (!_currentRelationMemberId || !_currentRelationType) return;
-            const fromId = _currentRelationMemberId;
+            const fromId      = _currentRelationMemberId;
             const relationType = _currentRelationType;
             closeRelationModal();
             await saveRelationship(fromId, toId, relationType);
@@ -1021,7 +1285,7 @@
             }
         }
 
-        /* ── Add member ── */
+        /* ── Add / Edit member ── */
         async function submitNewMember(e) {
             e.preventDefault();
             const btn = document.getElementById('submit-btn');
@@ -1030,8 +1294,10 @@
 
             const parentId = document.getElementById('f-parent').value || null;
             const isAlive  = document.querySelector('input[name="f-alive"]:checked').value === 'yes';
+            const photoFile = document.getElementById('f-photo').files[0];
+
             const payload = {
-                prefix:             document.getElementById('f-prefix').value || null,
+                prefix:             document.getElementById('f-prefix').value.trim() || null,
                 first_name:         document.getElementById('f-firstname').value.trim(),
                 last_name:          document.getElementById('f-lastname').value.trim() || null,
                 former_first_name:  document.getElementById('f-former-firstname').value.trim() || null,
@@ -1047,21 +1313,108 @@
                 workplace:          document.getElementById('f-workplace').value.trim() || null,
                 address:            document.getElementById('f-address').value.trim() || null,
                 bio:                document.getElementById('f-bio').value.trim() || null,
-                ...(parentId ? { parent_id: parentId } : {}),
+                parent_id:          parentId,
             };
 
             try {
                 await ensureSignedIn();
-                const { error } = await _supabase.from('profiles').insert([payload]);
-                if (error) throw error;
-                showToast('✅ เพิ่มสมาชิกสำเร็จ!');
+
+                // อัปโหลดรูปภาพ (ถ้ามีการเลือกไฟล์)
+                if (photoFile) {
+                    try {
+                        payload.photo_url = await uploadMemberPhoto(photoFile);
+                    } catch (photoErr) {
+                        console.warn('ไม่สามารถอัปโหลดรูปภาพ:', photoErr.message);
+                        showToast('⚠️ อัปโหลดรูปภาพไม่สำเร็จ — บันทึกโดยไม่มีรูป', true);
+                    }
+                }
+
+                if (_editMemberId) {
+                    // แก้ไขข้อมูลที่มีอยู่
+                    const { error } = await _supabase.from('profiles').update(payload).eq('id', _editMemberId);
+                    if (error) throw error;
+                    showToast('✅ แก้ไขข้อมูลสำเร็จ!');
+                } else {
+                    // เพิ่มสมาชิกใหม่
+                    const { error } = await _supabase.from('profiles').insert([payload]);
+                    if (error) throw error;
+                    showToast('✅ เพิ่มสมาชิกสำเร็จ!');
+                }
+
                 closeModal();
                 await fetchFamilyMembers();
             } catch (err) {
                 showToast('❌ เกิดข้อผิดพลาด: ' + err.message, true);
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'บันทึก';
+                btn.textContent = _editMemberId ? 'บันทึกการแก้ไข' : 'บันทึก';
+            }
+        }
+
+        /* ── Identity functions ── */
+        window._identityId = localStorage.getItem('jft_identity_id') || null;
+
+        function updateIdentityBar() {
+            const bar    = document.getElementById('identity-bar');
+            const nameEl = document.getElementById('identity-bar-name');
+            const id     = window._identityId;
+            if (id) {
+                const member = (window._familyMembers || []).find(m => m.id === id);
+                const name   = member
+                    ? [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ')
+                    : '(ไม่พบ)';
+                nameEl.textContent = name;
+                bar.style.display = '';
+            } else {
+                bar.style.display = 'none';
+            }
+        }
+
+        function openIdentityModal() {
+            const sel = document.getElementById('identity-select');
+            sel.innerHTML = '<option value="">— เลือกบุคคล —</option>';
+            (window._familyMembers || []).forEach(m => {
+                const name = [m.prefix, m.first_name, m.last_name].filter(Boolean).join(' ');
+                const opt  = document.createElement('option');
+                opt.value  = m.id;
+                opt.textContent = name + (m.nickname ? ` (${m.nickname})` : '');
+                if (m.id === window._identityId) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            document.getElementById('identity-modal-backdrop').classList.add('open');
+        }
+
+        function closeIdentityModal() {
+            document.getElementById('identity-modal-backdrop').classList.remove('open');
+        }
+
+        function closeIdentityModalOnBackdrop(e) {
+            if (e.target === document.getElementById('identity-modal-backdrop')) closeIdentityModal();
+        }
+
+        function confirmIdentity() {
+            const id = document.getElementById('identity-select').value;
+            if (!id) { showToast('⚠️ กรุณาเลือกบุคคล', true); return; }
+            window._identityId = id;
+            localStorage.setItem('jft_identity_id', id);
+            closeIdentityModal();
+            updateIdentityBar();
+            renderMemberCards(window._familyMembers || []);
+            const treeView = document.getElementById('tree-view');
+            if (treeView && treeView.style.display === 'block') {
+                renderFamilyTree(window._familyMembers || []);
+            }
+            showToast('✅ กำหนดตัวตนสำเร็จ');
+        }
+
+        function clearIdentity() {
+            window._identityId = null;
+            localStorage.removeItem('jft_identity_id');
+            updateIdentityBar();
+            renderMemberCards(window._familyMembers || []);
+            const treeView = document.getElementById('tree-view');
+            if (treeView && treeView.style.display === 'block') {
+                renderFamilyTree(window._familyMembers || []);
             }
         }
     </script>
