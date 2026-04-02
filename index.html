@@ -898,7 +898,6 @@
     <!-- ░░ Hamburger Menu ░░ -->
     <div class="hamburger-menu" id="hamburger-menu">
         <div class="hamburger-menu-inner">
-            <input type="search" id="search-input" placeholder="🔍  ค้นหาชื่อสมาชิก..." oninput="filterMembers()" />
             <button class="btn btn-secondary" onclick="openIdentityModal(); toggleMenu();">🔍 สืบลำดับญาติ</button>
             <div class="status-box">
                 📡&nbsp; สถานะ:&nbsp;
@@ -928,7 +927,7 @@
         <!-- Tab Navigation -->
         <div class="tab-nav">
             <button class="tab-btn active" id="tab-btn-members" onclick="switchTab('members')">👨‍👩‍👧‍👦 สมาชิก</button>
-            <button class="tab-btn" id="tab-btn-tree" onclick="switchTab('tree')">🌳 แผนผังเครือญาติ</button>
+            <button class="tab-btn" id="tab-btn-tree" onclick="switchTab('tree')">🌳 แผนผังสืบลำดับญาติ</button>
         </div>
 
         <!-- Panel: สมาชิก -->
@@ -945,7 +944,7 @@
             </div>
         </div>
 
-        <!-- Panel: แผนผังเครือญาติ -->
+        <!-- Panel: แผนผังสืบลำดับญาติ -->
         <div id="tab-panel-tree" style="display:none;">
             <div id="tree-container">
                 <div class="tree-controls">
