@@ -42,21 +42,7 @@
             flex-wrap: wrap;
             gap: 0.6rem;
             align-items: center;
-        }
-        .toolbar input[type="search"] {
-            flex: 1 1 180px;
-            padding: 0.6rem 1rem;
-            border: 1.5px solid #a7f3d0;
-            border-radius: 2rem;
-            font-size: 1rem;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            background: #fff;
-            min-height: 44px;
-        }
-        .toolbar input[type="search"]:focus {
-            border-color: #059669;
-            box-shadow: 0 0 0 3px rgba(5,150,105,0.15);
+            justify-content: flex-end;
         }
         .btn {
             display: inline-flex;
@@ -89,52 +75,71 @@
         .btn-danger { background: #ef4444; color: #fff; }
         .btn-danger:hover { background: #dc2626; }
 
-        /* ───── Status Bar ───── */
-        .status-bar {
+        /* ───── Hamburger Menu ───── */
+        .hamburger-btn {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.15);
+            border: 1.5px solid rgba(255,255,255,0.3);
+            color: #fff;
+            border-radius: 0.5rem;
+            width: 40px;
+            height: 40px;
+            font-size: 1.3rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            z-index: 50;
+        }
+        .hamburger-btn:hover { background: rgba(255,255,255,0.28); }
+        .hamburger-menu {
             max-width: 900px;
-            margin: 0.75rem auto 0;
+            margin: 0 auto;
             padding: 0 1rem;
+            display: none;
+        }
+        .hamburger-menu.open { display: block; }
+        .hamburger-menu-inner {
+            background: #fff;
+            border: 1.5px solid #d1fae5;
+            border-radius: 0.75rem;
+            padding: 0.9rem 1rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            margin-top: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+        }
+        #search-input {
+            width: 100%;
+            padding: 0.6rem 1rem;
+            border: 1.5px solid #a7f3d0;
+            border-radius: 2rem;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background: #fff;
+            min-height: 44px;
+            font-family: inherit;
+        }
+        #search-input:focus {
+            border-color: #059669;
+            box-shadow: 0 0 0 3px rgba(5,150,105,0.15);
         }
         .status-box {
             padding: 0.55rem 1rem;
             border-radius: 0.75rem;
-            background: #fff;
+            background: #f8fffe;
             border: 1.5px solid #d1fae5;
             font-size: 0.85rem;
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
         }
-
-        /* ───── View Tabs ───── */
-        .view-tabs {
-            max-width: 900px;
-            margin: 1rem auto 0;
-            padding: 0 1rem;
-            display: flex;
-            gap: 0.5rem;
-        }
-        .tab-btn {
-            flex: 1;
-            padding: 0.6rem 1rem;
-            border: 1.5px solid #d1fae5;
-            border-radius: 0.75rem;
-            background: #fff;
-            color: #374151;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s, border-color 0.2s, color 0.2s;
-            min-height: 44px;
-        }
-        .tab-btn.active {
-            background: #059669;
-            color: #fff;
-            border-color: #059669;
-            box-shadow: 0 2px 6px rgba(5,150,105,0.3);
-        }
-        .tab-btn:not(.active):hover { background: #f0fdf4; }
 
         /* ───── Main Content ───── */
         .main {
@@ -210,81 +215,6 @@
         .card-hint {
             font-size: 0.75rem;
             color: #94a3b8;
-        }
-
-        /* ───── Tree View ───── */
-        #tree-view { display: none; }
-        .tree-scroll-wrap {
-            overflow: auto;
-            -webkit-overflow-scrolling: touch;
-            border: 1.5px solid #d1fae5;
-            border-radius: 1rem;
-            background: #f8fffe;
-            min-height: 320px;
-        }
-        .tree-canvas {
-            position: relative;
-            display: inline-block;
-            min-width: 100%;
-        }
-        .tree-node {
-            position: absolute;
-            width: 150px;
-            background: white;
-            border-radius: 10px;
-            border-left: 4px solid #059669;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            padding: 9px 11px;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: box-shadow 0.2s, transform 0.15s;
-            user-select: none;
-            animation: treeNodeIn 0.4s ease both;
-        }
-        .tree-node:hover {
-            box-shadow: 0 6px 18px rgba(0,0,0,0.15);
-            transform: translateY(-2px) scale(1.02);
-        }
-        .tree-node-name {
-            font-weight: 700;
-            color: #1e293b;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-size: 0.82rem;
-        }
-        .tree-node-sub {
-            color: #64748b;
-            font-size: 0.72rem;
-            margin-top: 3px;
-        }
-        .tree-node-nickname {
-            color: #059669;
-            font-size: 0.72rem;
-            font-style: italic;
-            margin-top: 2px;
-        }
-        .tree-hint {
-            margin-top: 0.75rem;
-            padding: 0.6rem 1rem;
-            background: #fffbeb;
-            border: 1px solid #fde68a;
-            border-radius: 0.75rem;
-            font-size: 0.82rem;
-            color: #92400e;
-        }
-        @keyframes treeNodeIn {
-            from { opacity: 0; transform: translateY(-12px) scale(0.88); }
-            to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes drawPath {
-            /* 1200 is larger than any connector path length in the tree */
-            from { stroke-dashoffset: 1200; }
-            to   { stroke-dashoffset: 0; }
-        }
-        .tree-line {
-            stroke-dasharray: 1200; /* single dash covering max path length */
-            animation: drawPath 0.55s ease both;
         }
 
         /* ───── Modal ───── */
@@ -579,20 +509,6 @@
             color: #065f46;
             border-color: #6ee7b7;
         }
-        .tree-node-kinship {
-            color: #92400e;
-            font-size: 0.68rem;
-            font-weight: 700;
-            margin-top: 3px;
-            background: #fef3c7;
-            border-radius: 0.75rem;
-            padding: 0 6px;
-            display: inline-block;
-        }
-        .tree-kinship-self {
-            background: #d1fae5;
-            color: #065f46;
-        }
 
         /* ───── Identity Bar ───── */
         .identity-bar {
@@ -657,7 +573,6 @@
             .toolbar .btn { display: none; }
             .fab { display: inline-flex; }
             #members-container { grid-template-columns: 1fr; }
-            .tree-node { width: 130px; }
         }
         @media (max-width: 360px) {
             .site-header h1 { font-size: 1.1rem; }
@@ -670,22 +585,25 @@
     <header class="site-header">
         <h1>🌳 แผนผังครอบครัวจวงพลงาม</h1>
         <p>ระบบจัดการแผนผังครอบครัวตระกูลจวงพลงาม</p>
+        <button class="hamburger-btn" onclick="toggleMenu()" aria-label="เมนู">☰</button>
     </header>
+
+    <!-- ░░ Hamburger Menu ░░ -->
+    <div class="hamburger-menu" id="hamburger-menu">
+        <div class="hamburger-menu-inner">
+            <input type="search" id="search-input" placeholder="🔍  ค้นหาชื่อสมาชิก..." oninput="filterMembers()" />
+            <div class="status-box">
+                📡&nbsp; สถานะ:&nbsp;
+                <span id="connection-status">กำลังเชื่อมต่อ… ⏳</span>
+            </div>
+        </div>
+    </div>
 
     <!-- ░░ Toolbar ░░ -->
     <div class="toolbar">
-        <input type="search" id="search-input" placeholder="🔍  ค้นหาชื่อสมาชิก..." oninput="filterMembers()" />
         <button class="btn btn-primary" onclick="openModal()">➕ เพิ่มสมาชิก</button>
         <button class="btn btn-secondary" onclick="openIdentityModal()">👤 กำหนดตัวตน</button>
         <button class="btn btn-secondary" onclick="fetchFamilyMembers()">🔄 รีเฟรช</button>
-    </div>
-
-    <!-- ░░ Status ░░ -->
-    <div class="status-bar">
-        <div class="status-box">
-            📡&nbsp; สถานะ:&nbsp;
-            <span id="connection-status">กำลังเชื่อมต่อ… ⏳</span>
-        </div>
     </div>
 
     <!-- ░░ Identity Bar ░░ -->
@@ -697,12 +615,6 @@
         </div>
     </div>
 
-    <!-- ░░ View Tabs ░░ -->
-    <div class="view-tabs">
-        <button class="tab-btn active" id="tab-cards" onclick="switchView('cards')">🃏 การ์ดสมาชิก</button>
-        <button class="tab-btn" id="tab-tree" onclick="switchView('tree')">🌳 แผนผังครอบครัว</button>
-    </div>
-
     <!-- ░░ Main ░░ -->
     <main class="main">
         <div class="section-title">
@@ -710,23 +622,10 @@
             <span class="badge" id="member-count"></span>
         </div>
 
-        <!-- การ์ดสมาชิก -->
-        <div id="cards-view">
-            <div id="members-container">
-                <div class="state-placeholder">
-                    <div class="spinner"></div>
-                    <p>กำลังโหลดข้อมูลสมาชิก…</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- แผนผังครอบครัว -->
-        <div id="tree-view">
-            <div id="tree-view-container">
-                <div class="state-placeholder">
-                    <div class="spinner"></div>
-                    <p>กำลังโหลด…</p>
-                </div>
+        <div id="members-container">
+            <div class="state-placeholder">
+                <div class="spinner"></div>
+                <p>กำลังโหลดข้อมูลสมาชิก…</p>
             </div>
         </div>
     </main>
@@ -846,11 +745,18 @@
                     <label for="f-address">ที่อยู่</label>
                     <textarea id="f-address" rows="2" placeholder="เช่น 123/4 ถ.สุขุมวิท กรุงเทพฯ"></textarea>
                 </div>
-                <!-- ผู้ปกครอง -->
+                <!-- พ่อ -->
                 <div class="form-group">
-                    <label for="f-parent">ผู้ปกครอง (บิดา/มารดา)</label>
-                    <select id="f-parent">
-                        <option value="">— ไม่มีผู้ปกครอง (รุ่นแรก) —</option>
+                    <label for="f-father">พ่อ (บิดา)</label>
+                    <select id="f-father">
+                        <option value="">— ไม่ระบุ —</option>
+                    </select>
+                </div>
+                <!-- แม่ -->
+                <div class="form-group">
+                    <label for="f-mother">แม่ (มารดา)</label>
+                    <select id="f-mother">
+                        <option value="">— ไม่ระบุ —</option>
                     </select>
                 </div>
                 <!-- รูปภาพ -->
@@ -948,36 +854,12 @@
     <!-- ░░ Scripts ░░ -->
     <script src="connSupabase.js"></script>
     <script>
-        /* ── View switching ── */
-        function switchView(view) {
-            const cardsView = document.getElementById('cards-view');
-            const treeView  = document.getElementById('tree-view');
-            const tabCards  = document.getElementById('tab-cards');
-            const tabTree   = document.getElementById('tab-tree');
-            const searchBar = document.getElementById('search-input');
-
-            if (view === 'cards') {
-                cardsView.style.display = '';
-                treeView.style.display  = 'none';
-                tabCards.classList.add('active');
-                tabTree.classList.remove('active');
-                searchBar.style.display = '';
-            } else {
-                cardsView.style.display = 'none';
-                treeView.style.display  = 'block';
-                tabCards.classList.remove('active');
-                tabTree.classList.add('active');
-                searchBar.style.display = 'none';
-                renderFamilyTree(window._familyMembers || []);
-            }
-        }
-
         /* ── Modal helpers ── */
         let _editMemberId = null;
 
         function openModal(memberId) {
             _editMemberId = memberId || null;
-            populateParentDropdown(window._familyMembers || []);
+            populateParentDropdowns(window._familyMembers || []);
 
             if (_editMemberId) {
                 const member = (window._familyMembers || []).find(m => m.id === _editMemberId);
@@ -1008,7 +890,13 @@
             document.getElementById('f-workplace').value        = member.workplace || '';
             document.getElementById('f-address').value          = member.address || '';
             document.getElementById('f-bio').value              = member.bio || '';
-            document.getElementById('f-parent').value           = member.parent_id || '';
+
+            // หาพ่อและแม่จากตาราง relationships
+            const rels = window._relationships || [];
+            const fatherRel = rels.find(r => r.from_id === member.id && r.relation === 'พ่อ');
+            const motherRel = rels.find(r => r.from_id === member.id && r.relation === 'แม่');
+            document.getElementById('f-father').value = fatherRel ? fatherRel.to_id : '';
+            document.getElementById('f-mother').value = motherRel ? motherRel.to_id : '';
 
             if (member.is_alive === false) {
                 document.getElementById('f-alive-no').checked = true;
@@ -1107,6 +995,13 @@
 
         // Event delegation for member cards
         document.addEventListener('click', function(e) {
+            // Close hamburger menu when clicking outside
+            const menu = document.getElementById('hamburger-menu');
+            const hamburgerBtn = document.querySelector('.hamburger-btn');
+            if (menu && hamburgerBtn && !menu.contains(e.target) && !hamburgerBtn.contains(e.target)) {
+                menu.classList.remove('open');
+            }
+
             // Edit button on card
             const editBtn = e.target.closest('.btn-card-edit');
             if (editBtn) {
@@ -1292,8 +1187,9 @@
             btn.disabled = true;
             btn.textContent = 'กำลังบันทึก…';
 
-            const parentId = document.getElementById('f-parent').value || null;
-            const isAlive  = document.querySelector('input[name="f-alive"]:checked').value === 'yes';
+            const fatherId  = document.getElementById('f-father').value || null;
+            const motherId  = document.getElementById('f-mother').value || null;
+            const isAlive   = document.querySelector('input[name="f-alive"]:checked').value === 'yes';
             const photoFile = document.getElementById('f-photo').files[0];
 
             const payload = {
@@ -1313,7 +1209,6 @@
                 workplace:          document.getElementById('f-workplace').value.trim() || null,
                 address:            document.getElementById('f-address').value.trim() || null,
                 bio:                document.getElementById('f-bio').value.trim() || null,
-                parent_id:          parentId,
             };
 
             try {
@@ -1329,16 +1224,34 @@
                     }
                 }
 
+                let savedMemberId = _editMemberId;
+
                 if (_editMemberId) {
                     // แก้ไขข้อมูลที่มีอยู่
                     const { error } = await _supabase.from('profiles').update(payload).eq('id', _editMemberId);
                     if (error) throw error;
                     showToast('✅ แก้ไขข้อมูลสำเร็จ!');
+                    // ลบความสัมพันธ์พ่อ/แม่เดิมก่อนบันทึกใหม่
+                    await _supabase.from('relationships').delete().match({ from_id: _editMemberId, relation: 'พ่อ' });
+                    await _supabase.from('relationships').delete().match({ from_id: _editMemberId, relation: 'แม่' });
                 } else {
                     // เพิ่มสมาชิกใหม่
-                    const { error } = await _supabase.from('profiles').insert([payload]);
+                    const { data: insertData, error } = await _supabase.from('profiles').insert([payload]).select();
                     if (error) throw error;
+                    savedMemberId = insertData && insertData[0] ? insertData[0].id : null;
                     showToast('✅ เพิ่มสมาชิกสำเร็จ!');
+                }
+
+                // บันทึกความสัมพันธ์พ่อ/แม่
+                if (savedMemberId) {
+                    if (fatherId) {
+                        const { error: fe } = await _supabase.from('relationships').insert([{ from_id: savedMemberId, to_id: fatherId, relation: 'พ่อ' }]);
+                        if (fe) console.warn('บันทึกพ่อไม่สำเร็จ:', fe.message);
+                    }
+                    if (motherId) {
+                        const { error: me } = await _supabase.from('relationships').insert([{ from_id: savedMemberId, to_id: motherId, relation: 'แม่' }]);
+                        if (me) console.warn('บันทึกแม่ไม่สำเร็จ:', me.message);
+                    }
                 }
 
                 closeModal();
@@ -1400,10 +1313,6 @@
             closeIdentityModal();
             updateIdentityBar();
             renderMemberCards(window._familyMembers || []);
-            const treeView = document.getElementById('tree-view');
-            if (treeView && treeView.style.display === 'block') {
-                renderFamilyTree(window._familyMembers || []);
-            }
             showToast('✅ กำหนดตัวตนสำเร็จ');
         }
 
@@ -1412,10 +1321,11 @@
             localStorage.removeItem('jft_identity_id');
             updateIdentityBar();
             renderMemberCards(window._familyMembers || []);
-            const treeView = document.getElementById('tree-view');
-            if (treeView && treeView.style.display === 'block') {
-                renderFamilyTree(window._familyMembers || []);
-            }
+        }
+
+        /* ── Hamburger Menu ── */
+        function toggleMenu() {
+            document.getElementById('hamburger-menu').classList.toggle('open');
         }
     </script>
 </body>
