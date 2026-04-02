@@ -351,25 +351,53 @@ function _reverseRelation(relation) {
 }
 
 /**
+ * ย่อรูปภาพด้วย Canvas แล้วแปลงเป็น data URL (JPEG, max 400px, quality 0.82)
+ * ใช้เป็น fallback เมื่อ Supabase Storage upload ไม่สำเร็จ
+ */
+function resizeImageToDataUrl(file, maxDim = 400, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const blobUrl = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(blobUrl);
+            const maxSide = Math.max(img.width, img.height);
+            const scale = (maxSide > 0) ? Math.min(1, maxDim / maxSide) : 1;
+            const canvas = document.createElement('canvas');
+            canvas.width  = Math.round((img.width  || maxDim) * scale);
+            canvas.height = Math.round((img.height || maxDim) * scale);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => { URL.revokeObjectURL(blobUrl); reject(new Error('โหลดรูปภาพไม่สำเร็จ')); };
+        img.src = blobUrl;
+    });
+}
+
+/**
  * อัปโหลดรูปภาพสมาชิกไปยัง Supabase Storage (bucket: avatars)
- * หมายเหตุ: ต้องสร้าง bucket ชื่อ 'avatars' ใน Supabase Storage ก่อน
- * และตั้งค่า RLS ให้สามารถ upload ได้
+ * หากการอัปโหลดไม่สำเร็จ จะใช้ data URL ที่ย่อขนาดแล้วแทน
  */
 async function uploadMemberPhoto(file) {
+    await ensureSignedIn();
+
     const parts  = file.name.split('.');
     const rawExt = parts.length > 1 ? parts.pop().toLowerCase() : '';
     const safeExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(rawExt) ? rawExt : 'jpg';
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}.${safeExt}`;
+    const contentType = file.type || 'image/jpeg';
 
     const { error } = await _supabase.storage
         .from('avatars')
-        .upload(fileName, file, { contentType: file.type, upsert: true, cacheControl: '3600' });
+        .upload(fileName, file, { contentType, upsert: true, cacheControl: '3600' });
 
-    if (error) throw error;
+    if (!error) {
+        const { data: urlData } = _supabase.storage.from('avatars').getPublicUrl(fileName);
+        if (urlData?.publicUrl) return urlData.publicUrl;
+    }
 
-    const { data: urlData } = _supabase.storage.from('avatars').getPublicUrl(fileName);
-    if (!urlData || !urlData.publicUrl) throw new Error('ไม่สามารถรับ URL รูปภาพได้ (ตรวจสอบการตั้งค่า bucket "avatars" ใน Supabase Storage)');
-    return urlData.publicUrl;
+    // Fallback: ย่อรูปและเก็บเป็น data URL ในฐานข้อมูลโดยตรง
+    console.warn('Supabase Storage upload ไม่สำเร็จ — ใช้ data URL แทน:', error?.message);
+    return await resizeImageToDataUrl(file);
 }
 
 /**
@@ -777,6 +805,10 @@ function renderFamilyTree() {
     });
     const coupleConnectedChildren = new Set(Object.values(coupleChildren).flat());
 
+    // ─── map: id → spouse id (ใช้หาจุดเริ่มต้นของเส้นพ่อ-แม่ → ลูก) ───
+    const spouseOf = {};
+    spousePairs.forEach(({ a, b }) => { spouseOf[a] = b; spouseOf[b] = a; });
+
     // ─── Edges: parent → child (ข้ามลูกที่มีพ่อ-แม่เป็นคู่สมรส) ───
     root.links()
         .filter(l => l.source.data.id !== '__root__' && l.target.data.id !== '__root__')
@@ -784,9 +816,23 @@ function renderFamilyTree() {
         .forEach(({ source: s, target: t }) => {
             const sx = s.x + ox, sy = s.y + oy;
             const tx = t.x + ox, ty = t.y + oy;
-            const cy = (sy + ty) / 2;
+
+            // ถ้าพ่อ/แม่ (primary parent) มีคู่สมรสอยู่ในแผนผัง
+            // ให้โยงเส้นจากจุดกึ่งกลางของเส้นแต่งงาน แทนที่จะโยงจาก node พ่อหรือแม่โดยตรง
+            let startX = sx;
+            const spouseId = spouseOf[s.data.id];
+            if (spouseId && posById[spouseId]) {
+                const spouseX = posById[spouseId].x;
+                const [lx, rx] = sx <= spouseX
+                    ? [sx + NODE_W / 2, spouseX - NODE_W / 2]
+                    : [spouseX + NODE_W / 2, sx - NODE_W / 2];
+                startX = (lx + rx) / 2;
+            }
+
+            const startY = sy + NODE_H / 2;
+            const cy = (startY + ty) / 2;
             g.append('path')
-                .attr('d', `M${sx},${sy + NODE_H / 2} C${sx},${cy} ${tx},${cy} ${tx},${ty - NODE_H / 2}`)
+                .attr('d', `M${startX},${startY} C${startX},${cy} ${tx},${cy} ${tx},${ty - NODE_H / 2}`)
                 .attr('fill', 'none')
                 .attr('stroke', '#86efac')
                 .attr('stroke-width', 2);
