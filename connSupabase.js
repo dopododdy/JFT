@@ -253,7 +253,18 @@ function renderMemberCards(members) {
 
     // รากของต้นไม้ = สมาชิกที่ไม่มีข้อมูลพ่อ-แม่ในระบบ
     const hasParent = new Set(Object.keys(parentOf));
-    const roots = members.filter(m => !hasParent.has(m.id));
+
+    // ผู้ที่ไม่มีพ่อ-แม่ในระบบ แต่มีคู่สมรสที่มีพ่อ-แม่ ต้อง render อยู่ใต้พ่อ-แม่ของคู่สมรสนั้น
+    const spouseOfPersonWithParent = new Set();
+    members.forEach(m => {
+        if (hasParent.has(m.id)) {
+            (spouseOf[m.id] || []).forEach(sid => {
+                if (!hasParent.has(sid)) spouseOfPersonWithParent.add(sid);
+            });
+        }
+    });
+
+    const roots = members.filter(m => !hasParent.has(m.id) && !spouseOfPersonWithParent.has(m.id));
 
     // ── Render helpers ──────────────────────────────────────────────────────
 
