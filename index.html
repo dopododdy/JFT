@@ -1232,8 +1232,10 @@
                     if (error) throw error;
                     showToast('✅ แก้ไขข้อมูลสำเร็จ!');
                     // ลบความสัมพันธ์พ่อ/แม่เดิมก่อนบันทึกใหม่
-                    await _supabase.from('relationships').delete().match({ from_id: _editMemberId, relation: 'พ่อ' });
-                    await _supabase.from('relationships').delete().match({ from_id: _editMemberId, relation: 'แม่' });
+                    const { error: dfe } = await _supabase.from('relationships').delete().match({ from_id: _editMemberId, relation: 'พ่อ' });
+                    if (dfe) console.warn('ลบความสัมพันธ์พ่อเดิมไม่สำเร็จ:', dfe.message);
+                    const { error: dme } = await _supabase.from('relationships').delete().match({ from_id: _editMemberId, relation: 'แม่' });
+                    if (dme) console.warn('ลบความสัมพันธ์แม่เดิมไม่สำเร็จ:', dme.message);
                 } else {
                     // เพิ่มสมาชิกใหม่
                     const { data: insertData, error } = await _supabase.from('profiles').insert([payload]).select();

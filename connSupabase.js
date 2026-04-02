@@ -204,6 +204,19 @@ function renderMemberCards(members) {
 
     const identityId = window._identityId || null;
 
+    // สร้าง lookup map สำหรับ relationships เพื่อประสิทธิภาพในการแสดงผล
+    const relsByMember = {};
+    (window._relationships || []).forEach(r => {
+        if (!relsByMember[r.from_id]) relsByMember[r.from_id] = [];
+        if (!relsByMember[r.to_id])   relsByMember[r.to_id]   = [];
+        relsByMember[r.from_id].push(r);
+        relsByMember[r.to_id].push(r);
+    });
+
+    // สร้าง lookup map สำหรับสมาชิก
+    const memberById = {};
+    members.forEach(m => { memberById[m.id] = m; });
+
     containerEl.innerHTML = members.map(member => {
         const displayName = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
         const searchName  = `${member.first_name} ${member.last_name || ''}`.trim();
@@ -224,17 +237,18 @@ function renderMemberCards(members) {
 
         // พ่อและแม่ (จากตาราง relationships)
         let parentText = '';
-        const fatherRel = (window._relationships || []).find(r => r.from_id === member.id && r.relation === 'พ่อ');
-        const motherRel = (window._relationships || []).find(r => r.from_id === member.id && r.relation === 'แม่');
+        const memberRels = relsByMember[member.id] || [];
+        const fatherRel = memberRels.find(r => r.from_id === member.id && r.relation === 'พ่อ');
+        const motherRel = memberRels.find(r => r.from_id === member.id && r.relation === 'แม่');
         if (fatherRel) {
-            const father = window._familyMembers.find(m => m.id === fatherRel.to_id);
+            const father = memberById[fatherRel.to_id];
             if (father) {
                 const fName = [father.prefix, father.first_name, father.last_name].filter(Boolean).join(' ');
                 parentText += `<div><strong>พ่อ:</strong> ${escapeHtml(fName)}</div>`;
             }
         }
         if (motherRel) {
-            const mother = window._familyMembers.find(m => m.id === motherRel.to_id);
+            const mother = memberById[motherRel.to_id];
             if (mother) {
                 const mName = [mother.prefix, mother.first_name, mother.last_name].filter(Boolean).join(' ');
                 parentText += `<div><strong>แม่:</strong> ${escapeHtml(mName)}</div>`;
@@ -242,7 +256,7 @@ function renderMemberCards(members) {
         }
         // backward compat: แสดง parent_id ถ้ายังไม่มีข้อมูลพ่อ/แม่จาก relationships
         if (!fatherRel && !motherRel && member.parent_id) {
-            const parent = window._familyMembers.find(m => m.id === member.parent_id);
+            const parent = memberById[member.parent_id];
             if (parent) {
                 const parentName = [parent.prefix, parent.first_name, parent.last_name].filter(Boolean).join(' ');
                 parentText = `<div><strong>ผู้ปกครอง:</strong> ${escapeHtml(parentName)}</div>`;
@@ -250,12 +264,11 @@ function renderMemberCards(members) {
         }
 
         // แสดงความสัมพันธ์เพิ่มเติม (จากตาราง relationships)
-        const relTags = (window._relationships || [])
-            .filter(r => r.from_id === member.id || r.to_id === member.id)
+        const relTags = memberRels
             .map(r => {
                 const isFrom = r.from_id === member.id;
                 const otherId = isFrom ? r.to_id : r.from_id;
-                const other = window._familyMembers.find(m => m.id === otherId);
+                const other = memberById[otherId];
                 if (!other) return '';
                 const otherName = [other.prefix, other.first_name, other.last_name].filter(Boolean).join(' ');
                 const label = isFrom ? r.relation : _reverseRelation(r.relation);
