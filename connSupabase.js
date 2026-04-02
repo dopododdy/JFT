@@ -225,8 +225,6 @@ function renderMemberCards(members) {
         const fullName    = [member.first_name, member.last_name].filter(Boolean).join(' ');
         const displayName = fullName + (member.nickname ? ` (${member.nickname})` : '');
         const searchName  = `${member.first_name} ${member.last_name || ''}`.trim();
-        const genderIcon  = member.gender === 'ชาย' ? '♂' : (member.gender === 'หญิง' ? '♀' : '👤');
-        const circleIcon  = member.gender === 'ชาย' ? '👨' : (member.gender === 'หญิง' ? '👩' : '👤');
         const accentColor = member.gender === 'ชาย' ? '#2563eb' : (member.gender === 'หญิง' ? '#db2777' : '#059669');
 
         // ชื่อเดิม-นามสกุลเดิม
@@ -237,6 +235,13 @@ function renderMemberCards(members) {
         const aliveText = isAlive
             ? '🟢 มีชีวิต'
             : `⚫ เสียชีวิต${member.death_date ? ' เมื่อวันที่ ' + formatThaiDate(member.death_date) : ''}`;
+
+        // สีพื้นหลังตามเพศ (ฟ้าอ่อน=ชาย, ชมพูอ่อน=หญิง)
+        const cardBgColor = member.gender === 'ชาย'
+            ? (isAlive ? '#eff6ff' : '#dce8f5')
+            : member.gender === 'หญิง'
+            ? (isAlive ? '#fdf2f8' : '#eedbe8')
+            : (isAlive ? '#ffffff' : '#e5e7eb');
 
         // อายุ (แสดงเฉพาะกรณีมีชีวิตและมีวันเกิด)
         const age = (isAlive && member.birth_date) ? calcAge(member.birth_date) : null;
@@ -295,13 +300,13 @@ function renderMemberCards(members) {
         // รูปภาพ (แสดงด้านขวา)
         const photoHtml = member.photo_url
             ? `<img src="${escapeHtml(member.photo_url)}" class="member-photo-right" alt="รูป" onerror="this.style.display='none'">`
-            : `<div class="member-photo-placeholder-right">${circleIcon}</div>`;
+            : `<div class="member-photo-placeholder-right">👤</div>`;
 
         return `
-            <div class="member-card${isAlive ? '' : ' deceased'}" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(searchName.toLowerCase())}" style="border-left-color:${accentColor};">
+            <div class="member-card${isAlive ? '' : ' deceased'}" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(searchName.toLowerCase())}" style="border-left-color:${accentColor};background-color:${cardBgColor};">
                 <div class="member-card-header">
                     <div class="member-card-title">
-                        <h3 class="member-card-name">${genderIcon} ${escapeHtml(displayName)}</h3>
+                        <h3 class="member-card-name">${escapeHtml(displayName)}</h3>
                         ${kinshipHtml}
                     </div>
                     ${photoHtml}
@@ -756,9 +761,26 @@ function renderFamilyTree() {
     const posById = {};
     root.each(d => { posById[d.data.id] = { x: d.x + ox, y: d.y + oy }; });
 
-    // ─── Edges: parent → child ───
+    // ─── สร้าง couple → children map ───
+    const coupleKey = (a, b) => [a, b].sort().join('|');
+    const coupleChildren = {};
+    members.forEach(m => {
+        const fa = fatherOf[m.id];
+        const mo = motherOf[m.id];
+        if (fa && mo && posById[fa] && posById[mo]) {
+            const key = coupleKey(fa, mo);
+            if (spousePairSet.has(key)) {
+                if (!coupleChildren[key]) coupleChildren[key] = [];
+                coupleChildren[key].push(m.id);
+            }
+        }
+    });
+    const coupleConnectedChildren = new Set(Object.values(coupleChildren).flat());
+
+    // ─── Edges: parent → child (ข้ามลูกที่มีพ่อ-แม่เป็นคู่สมรส) ───
     root.links()
         .filter(l => l.source.data.id !== '__root__' && l.target.data.id !== '__root__')
+        .filter(l => !coupleConnectedChildren.has(l.target.data.id))
         .forEach(({ source: s, target: t }) => {
             const sx = s.x + ox, sy = s.y + oy;
             const tx = t.x + ox, ty = t.y + oy;
@@ -770,8 +792,9 @@ function renderFamilyTree() {
                 .attr('stroke-width', 2);
         });
 
-    // ─── Edges: พ่อ/แม่ที่สอง (เส้นประ) ───
+    // ─── Edges: พ่อ/แม่ที่สอง (เส้นประ) สำหรับลูกที่ไม่มีพ่อ-แม่เป็นคู่สมรส ───
     members.forEach(m => {
+        if (coupleConnectedChildren.has(m.id)) return;
         const p1 = primaryParentOf[m.id];
         const p2 = (fatherOf[m.id] && fatherOf[m.id] !== p1) ? fatherOf[m.id]
                  : (motherOf[m.id] && motherOf[m.id] !== p1) ? motherOf[m.id] : null;
@@ -787,24 +810,66 @@ function renderFamilyTree() {
             .attr('stroke-dasharray', '5,3');
     });
 
-    // ─── Edges: คู่สมรส (เส้นประ) ───
+    // ─── Edges: คู่สมรส — เส้นตรงแนวนอน + ลูกแตกจากจุดกึ่งกลาง ───
     spousePairs.forEach(({ a, b }) => {
         const posA = posById[a], posB = posById[b];
         if (!posA || !posB) return;
-        const edgeAx = posA.x + (posA.x <= posB.x ?  NODE_W / 2 : -NODE_W / 2);
-        const edgeBx = posB.x + (posA.x <= posB.x ? -NODE_W / 2 :  NODE_W / 2);
+
+        // จัดซ้าย-ขวา
+        const [leftPos, rightPos] = posA.x <= posB.x ? [posA, posB] : [posB, posA];
+        const marriageY = (posA.y + posB.y) / 2;
+        const lineX1    = leftPos.x  + NODE_W / 2;
+        const lineX2    = rightPos.x - NODE_W / 2;
+        const midX      = (lineX1 + lineX2) / 2;
+
+        // เส้นแนวนอนแสดงการแต่งงาน (solid)
         g.append('line')
-            .attr('x1', edgeAx).attr('y1', posA.y)
-            .attr('x2', edgeBx).attr('y2', posB.y)
-            .attr('stroke', '#fbbf24')
-            .attr('stroke-width', 2)
-            .attr('stroke-dasharray', '5,3');
-        g.append('text')
-            .attr('x', (edgeAx + edgeBx) / 2)
-            .attr('y', (posA.y + posB.y) / 2 + 5)
-            .attr('text-anchor', 'middle')
-            .attr('font-size', '13px')
-            .text('💑');
+            .attr('x1', lineX1).attr('y1', marriageY)
+            .attr('x2', lineX2).attr('y2', marriageY)
+            .attr('stroke', '#f59e0b')
+            .attr('stroke-width', 2);
+
+        // ลูกของคู่สมรสนี้
+        const key      = coupleKey(a, b);
+        const children = (coupleChildren[key] || []).filter(cid => posById[cid]);
+
+        if (children.length > 0) {
+            children.sort((x, y) => posById[x].x - posById[y].x);
+
+            const dropStartY  = marriageY;
+            const firstChildY = posById[children[0]].y;
+            const junctionY   = firstChildY - NODE_H / 2 - Math.max((firstChildY - NODE_H / 2 - (marriageY + NODE_H / 2)) * 0.4, 10);
+
+            // เส้นตั้งจากกึ่งกลางเส้นแต่งงานลงสู่จุดแยก
+            g.append('line')
+                .attr('x1', midX).attr('y1', dropStartY + NODE_H / 2)
+                .attr('x2', midX).attr('y2', junctionY)
+                .attr('stroke', '#86efac')
+                .attr('stroke-width', 2);
+
+            if (children.length > 1) {
+                // เส้นแนวนอนเชื่อมลูกทั้งหมด (ขยายถึง midX ถ้าจำเป็น)
+                const leftChildX  = posById[children[0]].x;
+                const rightChildX = posById[children[children.length - 1]].x;
+                const sibLineX1   = Math.min(leftChildX, midX);
+                const sibLineX2   = Math.max(rightChildX, midX);
+                g.append('line')
+                    .attr('x1', sibLineX1).attr('y1', junctionY)
+                    .attr('x2', sibLineX2).attr('y2', junctionY)
+                    .attr('stroke', '#86efac')
+                    .attr('stroke-width', 2);
+            }
+
+            // เส้นตั้งจากจุดแยกลงหาลูกแต่ละคน
+            children.forEach(cid => {
+                const posC = posById[cid];
+                g.append('line')
+                    .attr('x1', posC.x).attr('y1', junctionY)
+                    .attr('x2', posC.x).attr('y2', posC.y - NODE_H / 2)
+                    .attr('stroke', '#86efac')
+                    .attr('stroke-width', 2);
+            });
+        }
     });
 
     // ─── Nodes ───
@@ -822,7 +887,12 @@ function renderFamilyTree() {
             const strokeColor = isMale   ? '#2563eb'
                               : isFemale ? '#db2777'
                               : '#059669';
-            const fillColor   = isAlive ? '#ffffff' : '#e5e7eb';
+            // สีพื้นหลังตามเพศ: ฟ้าอ่อน=ชาย, ชมพูอ่อน=หญิง
+            const fillColor = isMale
+                ? (isAlive ? '#eff6ff' : '#dce8f5')
+                : isFemale
+                ? (isAlive ? '#fdf2f8' : '#eedbe8')
+                : (isAlive ? '#ffffff' : '#e5e7eb');
             const textColor   = isAlive ? '#1e293b' : '#6b7280';
 
             const ng = g.append('g')
@@ -840,15 +910,13 @@ function renderFamilyTree() {
                 .attr('stroke', strokeColor).attr('stroke-width', 2)
                 .style('filter', 'drop-shadow(0 2px 6px rgba(0,0,0,0.09))');
 
-            // Line 1: gender emoji + first_name - last_name
-            const gIcon    = isMale ? '👨' : (isFemale ? '👩' : '👤');
+            // Line 1: first_name - last_name (ไม่มี emoji เพศ)
             const fullName = [member.first_name, member.last_name].filter(Boolean).join(' - ');
-            const line1    = gIcon + ' ' + fullName;
             ng.append('text')
                 .attr('x', NODE_W / 2).attr('y', 26)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '12px').attr('font-weight', '700').attr('fill', textColor)
-                .text(line1.length > 20 ? line1.slice(0, 18) + '…' : line1);
+                .text(fullName.length > 22 ? fullName.slice(0, 22) + '…' : fullName);
 
             // Line 2: (nickname)
             if (member.nickname) {

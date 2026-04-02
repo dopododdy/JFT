@@ -182,7 +182,6 @@
             cursor: pointer;
         }
         .member-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.13); transform: translateY(-2px); }
-        .member-card.deceased { background: #e5e7eb; }
         .member-card.deceased .member-card-info { color: #374151; }
         .member-card-info {
             font-size: 0.85rem;
@@ -762,7 +761,8 @@
                 </div>
                 <div class="tree-legend">
                     <div class="tree-legend-row"><span class="tree-legend-line" style="background:#86efac;"></span> สายพ่อ-แม่</div>
-                    <div class="tree-legend-row"><span class="tree-legend-line" style="background:repeating-linear-gradient(90deg,#fbbf24 0 5px,transparent 5px 8px);"></span> คู่สมรส / พ่อ-แม่ที่สอง</div>
+                    <div class="tree-legend-row"><span class="tree-legend-line" style="background:#f59e0b;"></span> คู่สมรส</div>
+                    <div class="tree-legend-row"><span class="tree-legend-line" style="background:repeating-linear-gradient(90deg,#fbbf24 0 5px,transparent 5px 8px);"></span> พ่อ-แม่ที่สอง</div>
                 </div>
             </div>
         </div>
@@ -1126,7 +1126,20 @@
         /* ── Thai date preview ── */
         function updateDatePreview(inputId, previewId) {
             const val = document.getElementById(inputId).value;
-            document.getElementById(previewId).textContent = val ? formatThaiDate(val) : '';
+            document.getElementById(previewId).textContent = val ? formatThaiDate(beDateToISO(val)) : '';
+        }
+
+        /* ── แปลงวันที่พ.ศ. → ค.ศ. (ถ้าปี > 2400 ถือว่าเป็นพ.ศ.) ── */
+        function beDateToISO(dateStr) {
+            if (!dateStr) return null;
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+            const year = parseInt(parts[0], 10);
+            if (year > 2400) {
+                parts[0] = String(year - 543).padStart(4, '0');
+                return parts.join('-');
+            }
+            return dateStr;
         }
 
         /* ── Toggle death date field ── */
@@ -1373,10 +1386,10 @@
                 former_last_name:   document.getElementById('f-former-lastname').value.trim() || null,
                 nickname:           document.getElementById('f-nickname').value.trim() || null,
                 gender:             document.getElementById('f-gender').value || null,
-                birth_date:         document.getElementById('f-birthdate').value || null,
+                birth_date:         beDateToISO(document.getElementById('f-birthdate').value) || null,
                 marital_status:     document.getElementById('f-marital').value || 'โสด',
                 is_alive:           isAlive,
-                death_date:         (!isAlive && document.getElementById('f-deathdate').value) ? document.getElementById('f-deathdate').value : null,
+                death_date:         (!isAlive && document.getElementById('f-deathdate').value) ? beDateToISO(document.getElementById('f-deathdate').value) : null,
                 phone:              document.getElementById('f-phone').value.trim() || null,
                 line_id:            document.getElementById('f-line').value.trim() || null,
                 workplace:          document.getElementById('f-workplace').value.trim() || null,
