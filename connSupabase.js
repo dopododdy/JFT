@@ -14,6 +14,8 @@ const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 window._familyMembers = [];
 // เก็บข้อมูลความสัมพันธ์ทั้งหมด (จากตาราง relationships)
 window._relationships = [];
+// ตัวเลือกซ่อนคู่สมรสที่ไม่มีเส้นสายพ่อ/แม่ในแผนผัง
+window._treeHideMarriedIn = false;
 
 /**
  * ป้องกัน XSS ด้วยการ Escape อักขระพิเศษใน HTML
@@ -649,7 +651,7 @@ function renderFamilyTree() {
     const existingSvg = container.querySelector('svg');
     if (existingSvg) existingSvg.remove();
 
-    const members       = window._familyMembers  || [];
+    let members         = window._familyMembers  || [];
     const relationships = window._relationships  || [];
     const identityId    = window._identityId     || null;
 
@@ -663,6 +665,38 @@ function renderFamilyTree() {
     }
 
     const d3 = window.d3;
+
+    // ─── ซ่อนคู่สมรสที่ไม่มีเส้นสายพ่อ/แม่ เหนือขึ้นไป ───
+    if (window._treeHideMarriedIn) {
+        const allIds = new Set(members.map(m => m.id));
+        const hasParentInTree = new Set();
+        const hasChildInTree  = new Set();
+        const isSpouseInTree  = new Set();
+        relationships.forEach(r => {
+            if (r.relation === 'พ่อ' && allIds.has(r.to_id)) {
+                hasParentInTree.add(r.from_id);
+                hasChildInTree.add(r.to_id);
+            }
+            if (r.relation === 'แม่' && allIds.has(r.to_id)) {
+                hasParentInTree.add(r.from_id);
+                hasChildInTree.add(r.to_id);
+            }
+            if (['สามี/ภรรยา', 'สามี', 'ภรรยา'].includes(r.relation)) {
+                if (allIds.has(r.from_id)) isSpouseInTree.add(r.from_id);
+                if (allIds.has(r.to_id))   isSpouseInTree.add(r.to_id);
+            }
+        });
+        members.forEach(m => {
+            if (m.parent_id && allIds.has(m.parent_id)) {
+                hasParentInTree.add(m.id);
+                hasChildInTree.add(m.parent_id);
+            }
+        });
+        // ซ่อนถ้า: เป็นคู่สมรส AND ไม่มีพ่อ/แม่ AND ไม่มีลูกในระบบ
+        members = members.filter(m =>
+            !isSpouseInTree.has(m.id) || hasParentInTree.has(m.id) || hasChildInTree.has(m.id)
+        );
+    }
 
     // ─── สร้าง lookup ───
     const byId = {};
@@ -685,6 +719,41 @@ function renderFamilyTree() {
             }
         }
     });
+
+    // ─── คำนวณ generation ของสมาชิกแต่ละคน ───
+    // generation 0 = บรรพบุรุษสูงสุด (ไม่มีพ่อ/แม่ในระบบ), generation N = ลูกหลานรุ่นที่ N
+    const genOf = {};
+    const memberIdSet = new Set(members.map(m => m.id));
+    members.forEach(m => {
+        const hasFa = fatherOf[m.id] && memberIdSet.has(fatherOf[m.id]);
+        const hasMo = motherOf[m.id] && memberIdSet.has(motherOf[m.id]);
+        const hasLeg = m.parent_id && memberIdSet.has(m.parent_id);
+        if (!hasFa && !hasMo && !hasLeg) genOf[m.id] = 0;
+    });
+    let genChanged = true;
+    while (genChanged) {
+        genChanged = false;
+        members.forEach(m => {
+            let maxP = -1;
+            if (fatherOf[m.id] && genOf[fatherOf[m.id]] !== undefined) maxP = Math.max(maxP, genOf[fatherOf[m.id]]);
+            if (motherOf[m.id] && genOf[motherOf[m.id]] !== undefined) maxP = Math.max(maxP, genOf[motherOf[m.id]]);
+            if (m.parent_id   && genOf[m.parent_id]    !== undefined) maxP = Math.max(maxP, genOf[m.parent_id]);
+            if (maxP >= 0) {
+                const g = maxP + 1;
+                if (genOf[m.id] !== g) { genOf[m.id] = g; genChanged = true; }
+            }
+        });
+    }
+    // คู่สมรสที่ยังไม่มี generation → รับ generation ของคู่สมรส
+    let spouseGenChanged = true;
+    while (spouseGenChanged) {
+        spouseGenChanged = false;
+        spousePairs.forEach(({ a, b }) => {
+            if (genOf[a] === undefined && genOf[b] !== undefined) { genOf[a] = genOf[b]; spouseGenChanged = true; }
+            if (genOf[b] === undefined && genOf[a] !== undefined) { genOf[b] = genOf[a]; spouseGenChanged = true; }
+        });
+    }
+    members.forEach(m => { if (genOf[m.id] === undefined) genOf[m.id] = 0; });
 
     // ─── สร้าง tree structure: พ่อ > แม่ > parent_id ───
     const primaryParentOf = {};
@@ -745,20 +814,19 @@ function renderFamilyTree() {
         .nodeSize([NODE_W + H_SEP, NODE_H + V_SEP])
         .separation((a, b) => a.parent === b.parent ? SIBLING_SEP : COUSIN_SEP)(root);
 
-    // คำนวณ bounds
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    // คำนวณ bounds แนวนอน (จาก D3) และแนวตั้ง (จาก generation)
+    let x0 = Infinity, x1 = -Infinity;
     root.each(d => {
         x0 = Math.min(x0, d.x - NODE_W / 2);
         x1 = Math.max(x1, d.x + NODE_W / 2);
-        y0 = Math.min(y0, d.y - NODE_H / 2);
-        y1 = Math.max(y1, d.y + NODE_H / 2);
     });
 
-    const PAD  = 24;
-    const svgW = x1 - x0 + PAD * 2;
-    const svgH = y1 - y0 + PAD * 2;
-    const ox   = -x0 + PAD;   // offset ให้ x อยู่ใน viewport
-    const oy   = -y0 + PAD;
+    const maxGen  = members.reduce((mx, m) => Math.max(mx, genOf[m.id] || 0), 0);
+    const LEVEL_H = NODE_H + V_SEP;
+    const PAD     = 24;
+    const svgW    = x1 - x0 + PAD * 2;
+    const svgH    = (maxGen + 1) * LEVEL_H + PAD * 2;
+    const ox      = -x0 + PAD;   // offset ให้ x อยู่ใน viewport
 
     // ─── สร้าง SVG ───
     const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -793,9 +861,13 @@ function renderFamilyTree() {
     window._treeSvg  = svg;
     window._treeZoom = zoom;
 
-    // ─── ตำแหน่ง node แต่ละตัว (เทียบกับ offset) ───
+    // ─── ตำแหน่ง node แต่ละตัว: X จาก D3, Y จาก generation ───
     const posById = {};
-    root.each(d => { posById[d.data.id] = { x: d.x + ox, y: d.y + oy }; });
+    root.each(d => {
+        if (d.data.id === '__root__') return;
+        const gen = genOf[d.data.id] !== undefined ? genOf[d.data.id] : 0;
+        posById[d.data.id] = { x: d.x + ox, y: PAD + gen * LEVEL_H };
+    });
 
     // ─── สร้าง couple → children map ───
     const coupleKey = (a, b) => [a, b].sort().join('|');
@@ -822,8 +894,10 @@ function renderFamilyTree() {
         .filter(l => l.source.data.id !== '__root__' && l.target.data.id !== '__root__')
         .filter(l => !coupleConnectedChildren.has(l.target.data.id))
         .forEach(({ source: s, target: t }) => {
-            const sx = s.x + ox, sy = s.y + oy;
-            const tx = t.x + ox, ty = t.y + oy;
+            const ps = posById[s.data.id], pt = posById[t.data.id];
+            if (!ps || !pt) return;
+            const sx = ps.x, sy = ps.y;
+            const tx = pt.x, ty = pt.y;
 
             // ถ้าพ่อ/แม่ (primary parent) มีคู่สมรสอยู่ในแผนผัง
             // ให้โยงเส้นจากจุดกึ่งกลางของเส้นแต่งงาน แทนที่จะโยงจาก node พ่อหรือแม่โดยตรง
@@ -838,9 +912,10 @@ function renderFamilyTree() {
             }
 
             const startY = sy + NODE_H / 2;
-            const cy = (startY + ty) / 2;
+            const endY   = ty - NODE_H / 2;
+            const cy = (startY + endY) / 2;
             g.append('path')
-                .attr('d', `M${startX},${startY} C${startX},${cy} ${tx},${cy} ${tx},${ty - NODE_H / 2}`)
+                .attr('d', `M${startX},${startY} V${cy} H${tx} V${endY}`)
                 .attr('fill', 'none')
                 .attr('stroke', '#86efac')
                 .attr('stroke-width', 2);
@@ -855,9 +930,9 @@ function renderFamilyTree() {
         if (!p2) return;
         const posM = posById[m.id], posP = posById[p2];
         if (!posM || !posP) return;
-        const cy = (posM.y + posP.y) / 2;
+        const cy = (posM.y - NODE_H / 2 + posP.y + NODE_H / 2) / 2;
         g.append('path')
-            .attr('d', `M${posM.x},${posM.y - NODE_H / 2} C${posM.x},${cy} ${posP.x},${cy} ${posP.x},${posP.y + NODE_H / 2}`)
+            .attr('d', `M${posM.x},${posM.y - NODE_H / 2} V${cy} H${posP.x} V${posP.y + NODE_H / 2}`)
             .attr('fill', 'none')
             .attr('stroke', '#fbbf24')
             .attr('stroke-width', 1.5)
