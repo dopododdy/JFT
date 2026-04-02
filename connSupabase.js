@@ -236,12 +236,10 @@ function renderMemberCards(members) {
             ? '🟢 มีชีวิต'
             : `⚫ เสียชีวิต${member.death_date ? ' เมื่อวันที่ ' + formatThaiDate(member.death_date) : ''}`;
 
-        // สีพื้นหลังตามเพศ (ฟ้าอ่อน=ชาย, ชมพูอ่อน=หญิง)
-        const cardBgColor = member.gender === 'ชาย'
-            ? (isAlive ? '#eff6ff' : '#dce8f5')
-            : member.gender === 'หญิง'
-            ? (isAlive ? '#fdf2f8' : '#eedbe8')
-            : (isAlive ? '#ffffff' : '#e5e7eb');
+        // สีพื้นหลังตามเพศ (ฟ้าอ่อน=ชาย, ชมพูอ่อน=หญิง) และเทาเข้มเมื่อเสียชีวิต
+        const cardBgColor = isAlive
+            ? (member.gender === 'ชาย' ? '#eff6ff' : member.gender === 'หญิง' ? '#fdf2f8' : '#ffffff')
+            : '#9ca3af';
 
         // อายุ (แสดงเฉพาะกรณีมีชีวิตและมีวันเกิด)
         const age = (isAlive && member.birth_date) ? calcAge(member.birth_date) : null;

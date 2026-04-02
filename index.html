@@ -185,6 +185,8 @@
             cursor: pointer;
         }
         .member-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.13); transform: translateY(-2px); }
+        .member-card.deceased { border-left-color: #6b7280 !important; }
+        .member-card.deceased .member-card-name { color: #1f2937; }
         .member-card.deceased .member-card-info { color: #374151; }
         .member-card-info {
             font-size: 0.85rem;
@@ -844,8 +846,13 @@
                 <!-- วันเกิด -->
                 <div class="form-group">
                     <label for="f-birthdate">วันเดือนปีเกิด (พ.ศ.)</label>
-                    <input type="text" id="f-birthdate" placeholder="เลือกวันที่" readonly />
-                    <div id="f-birthdate-preview" style="font-size:0.8rem;color:#059669;margin-top:0.2rem;min-height:1.1em;"></div>
+                    <div id="f-birthdate-input-wrap">
+                        <input type="text" id="f-birthdate" placeholder="เลือกวันที่" readonly />
+                        <div id="f-birthdate-preview" style="font-size:0.8rem;color:#059669;margin-top:0.2rem;min-height:1.1em;"></div>
+                    </div>
+                    <label style="display:flex;align-items:center;gap:0.4rem;font-weight:normal;cursor:pointer;margin-top:0.4rem;font-size:0.9rem;">
+                        <input type="checkbox" id="f-birthdate-unknown" onchange="toggleUnknownBirthdate()" /> ไม่ทราบวันเกิด
+                    </label>
                 </div>
                 <!-- สถานะ มีชีวิต/เสียชีวิต -->
                 <div class="form-group">
@@ -862,8 +869,13 @@
                 <!-- วันที่เสียชีวิต (แสดงเฉพาะเมื่อเลือก เสียชีวิต) -->
                 <div class="form-group" id="f-deathdate-group" style="display:none;">
                     <label for="f-deathdate">เสียชีวิตเมื่อวันที่ (พ.ศ.)</label>
-                    <input type="text" id="f-deathdate" placeholder="เลือกวันที่" readonly />
-                    <div id="f-deathdate-preview" style="font-size:0.8rem;color:#6b7280;margin-top:0.2rem;min-height:1.1em;"></div>
+                    <div id="f-deathdate-input-wrap">
+                        <input type="text" id="f-deathdate" placeholder="เลือกวันที่" readonly />
+                        <div id="f-deathdate-preview" style="font-size:0.8rem;color:#6b7280;margin-top:0.2rem;min-height:1.1em;"></div>
+                    </div>
+                    <label style="display:flex;align-items:center;gap:0.4rem;font-weight:normal;cursor:pointer;margin-top:0.4rem;font-size:0.9rem;">
+                        <input type="checkbox" id="f-deathdate-unknown" onchange="toggleUnknownDeathdate()" /> ไม่ทราบวันเสียชีวิต
+                    </label>
                 </div>
                 <!-- เบอร์โทร + ไลน์ -->
                 <div class="form-row">
@@ -1110,6 +1122,10 @@
             document.getElementById('f-photo-preview-wrap').style.display = 'none';
             document.getElementById('modal-title').textContent = '➕ เพิ่มสมาชิกใหม่';
             document.getElementById('submit-btn').textContent  = 'บันทึก';
+            document.getElementById('f-birthdate-input-wrap').style.display = '';
+            document.getElementById('f-deathdate-input-wrap').style.display = '';
+            document.getElementById('f-birthdate-unknown').checked = false;
+            document.getElementById('f-deathdate-unknown').checked = false;
         }
         function closeModalOnBackdrop(e) {
             if (e.target === document.getElementById('modal-backdrop')) closeModal();
@@ -1212,6 +1228,28 @@
             const isDead = document.getElementById('f-alive-no').checked;
             document.getElementById('f-deathdate-group').style.display = isDead ? '' : 'none';
             if (!isDead) {
+                window._fpDeathdate && window._fpDeathdate.clear();
+                document.getElementById('f-deathdate-preview').textContent = '';
+                document.getElementById('f-deathdate-unknown').checked = false;
+                document.getElementById('f-deathdate-input-wrap').style.display = '';
+            }
+        }
+
+        /* ── Toggle unknown birth date ── */
+        function toggleUnknownBirthdate() {
+            const isUnknown = document.getElementById('f-birthdate-unknown').checked;
+            document.getElementById('f-birthdate-input-wrap').style.display = isUnknown ? 'none' : '';
+            if (isUnknown) {
+                window._fpBirthdate && window._fpBirthdate.clear();
+                document.getElementById('f-birthdate-preview').textContent = '';
+            }
+        }
+
+        /* ── Toggle unknown death date ── */
+        function toggleUnknownDeathdate() {
+            const isUnknown = document.getElementById('f-deathdate-unknown').checked;
+            document.getElementById('f-deathdate-input-wrap').style.display = isUnknown ? 'none' : '';
+            if (isUnknown) {
                 window._fpDeathdate && window._fpDeathdate.clear();
                 document.getElementById('f-deathdate-preview').textContent = '';
             }
