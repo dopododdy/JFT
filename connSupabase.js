@@ -222,9 +222,9 @@ function renderMemberCards(members) {
     members.forEach(m => { memberById[m.id] = m; });
 
     containerEl.innerHTML = members.map(member => {
-        const displayName = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
+        const displayName = (member.first_name || '') + (member.nickname ? ` (${member.nickname})` : '');
         const searchName  = `${member.first_name} ${member.last_name || ''}`.trim();
-        const genderIcon  = member.gender === 'ชาย' ? '👨' : (member.gender === 'หญิง' ? '👩' : '👤');
+        const genderIcon  = member.gender === 'ชาย' ? '♂' : (member.gender === 'หญิง' ? '♀' : '👤');
         const accentColor = member.gender === 'ชาย' ? '#2563eb' : (member.gender === 'หญิง' ? '#db2777' : '#059669');
 
         // ชื่อเดิม-นามสกุลเดิม
@@ -296,11 +296,11 @@ function renderMemberCards(members) {
             : `<div class="member-photo-placeholder">${genderIcon}</div>`;
 
         return `
-            <div class="member-card" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(searchName.toLowerCase())}" style="border-left-color:${accentColor};">
+            <div class="member-card${isAlive ? '' : ' deceased'}" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(searchName.toLowerCase())}" style="border-left-color:${accentColor};">
                 <div class="member-card-header">
                     ${photoHtml}
                     <div class="member-card-title">
-                        <h3 class="member-card-name">${escapeHtml(displayName)}</h3>
+                        <h3 class="member-card-name">${genderIcon} ${escapeHtml(displayName)}</h3>
                         ${kinshipHtml}
                     </div>
                     <div class="card-btn-group">
@@ -310,7 +310,6 @@ function renderMemberCards(members) {
                 </div>
                 <div class="member-card-info">
                     ${formerName ? `<div><strong>ชื่อเดิม:</strong> ${escapeHtml(formerName)}</div>` : ''}
-                    ${member.nickname ? `<div><strong>ชื่อเล่น:</strong> ${escapeHtml(member.nickname)}</div>` : ''}
                     ${member.marital_status ? `<div><strong>สถานะสมรส:</strong> ${escapeHtml(member.marital_status)}</div>` : ''}
                     <div><strong>เพศ:</strong> ${escapeHtml(member.gender) || 'ไม่ระบุ'}</div>
                     ${member.birth_date ? `<div><strong>วันเกิด:</strong> ${formatThaiDate(member.birth_date)}</div>` : ''}
@@ -820,7 +819,7 @@ function renderFamilyTree() {
             const strokeColor = isMale   ? '#2563eb'
                               : isFemale ? '#db2777'
                               : '#059669';
-            const fillColor   = isAlive ? '#ffffff' : '#f1f5f9';
+            const fillColor   = isAlive ? '#ffffff' : '#e5e7eb';
             const textColor   = isAlive ? '#1e293b' : '#6b7280';
 
             const ng = g.append('g')
@@ -838,31 +837,20 @@ function renderFamilyTree() {
                 .attr('stroke', strokeColor).attr('stroke-width', 2)
                 .style('filter', 'drop-shadow(0 2px 6px rgba(0,0,0,0.09))');
 
-            // Gender/status icon (top-left)
-            const gIcon = !isAlive ? '⚫'
-                        : (isMale   ? '👨'
-                        : (isFemale ? '👩' : '👤'));
+            // Gender icon (top-left)
+            const gIcon = isMale ? '♂' : (isFemale ? '♀' : '👤');
             ng.append('text')
                 .attr('x', 9).attr('y', 21)
                 .attr('font-size', '14px')
                 .text(gIcon);
 
-            // Full name
-            const displayName = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
+            // First name (nickname)
+            const displayName = (member.first_name || '') + (member.nickname ? ` (${member.nickname})` : '');
             ng.append('text')
                 .attr('x', NODE_W / 2).attr('y', 22)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '11px').attr('font-weight', '700').attr('fill', textColor)
                 .text(displayName.length > 17 ? displayName.slice(0, 15) + '…' : displayName);
-
-            // Nickname
-            if (member.nickname) {
-                ng.append('text')
-                    .attr('x', NODE_W / 2).attr('y', 37)
-                    .attr('text-anchor', 'middle')
-                    .attr('font-size', '10px').attr('fill', '#94a3b8')
-                    .text('(' + member.nickname + ')');
-            }
 
             // ─── Kinship badge (จาก กำหนดตัวตน) ───
             if (identityId) {

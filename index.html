@@ -182,6 +182,8 @@
             cursor: pointer;
         }
         .member-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.13); transform: translateY(-2px); }
+        .member-card.deceased { background: #e5e7eb; }
+        .member-card.deceased .member-card-info { color: #374151; }
         .member-card-info {
             font-size: 0.85rem;
             color: #475569;
@@ -670,7 +672,7 @@
 
     <!-- ░░ Header ░░ -->
     <header class="site-header">
-        <h1>🌳 แผนผังครอบครัวจวงพลงาม</h1>
+        <h1>แผนผังครอบครัวจวงพลงาม</h1>
         <p>ระบบจัดการแผนผังครอบครัวตระกูลจวงพลงาม</p>
         <button class="hamburger-btn" onclick="toggleMenu()" aria-label="เมนู">☰</button>
     </header>
