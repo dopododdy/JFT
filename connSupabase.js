@@ -901,7 +901,7 @@ function renderFamilyTree() {
     // ─── สร้าง SVG ───
     const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svgEl.style.width  = '100%';
-    svgEl.style.height = Math.min(svgH, 600) + 'px';
+    svgEl.style.height = '100%';
     container.insertBefore(svgEl, container.firstChild);
 
     const svg  = d3.select(svgEl);
@@ -918,9 +918,12 @@ function renderFamilyTree() {
         .on('zoom', ev => g.attr('transform', ev.transform));
     svg.call(zoom);
 
-    const cw    = container.clientWidth || 800;
-    const scale = Math.min(1, (cw - 32) / svgW);
-    zoom.transform(svg, d3.zoomIdentity.translate(PAD, 16).scale(scale));
+    const cw    = container.clientWidth  || 800;
+    const ch    = container.clientHeight || 600;
+    const scale = (svgW > 0 && svgH > 0)
+        ? Math.min(1, (cw - 2 * PAD) / svgW, (ch - 2 * PAD) / svgH)
+        : 1;
+    zoom.transform(svg, d3.zoomIdentity.translate(PAD, PAD).scale(scale));
 
     // เก็บ reference สำหรับปุ่ม zoom controls (treeZoomIn / treeZoomOut / treeZoomReset)
     window._treeSvg  = svg;
