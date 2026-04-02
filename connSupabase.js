@@ -322,9 +322,10 @@ function _reverseRelation(relation) {
  * และตั้งค่า RLS ให้สามารถ upload ได้
  */
 async function uploadMemberPhoto(file) {
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-    const safeExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) ? ext : 'jpg';
-    const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${safeExt}`;
+    const parts  = file.name.split('.');
+    const rawExt = parts.length > 1 ? parts.pop().toLowerCase() : '';
+    const safeExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(rawExt) ? rawExt : 'jpg';
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}.${safeExt}`;
 
     const { error } = await _supabase.storage
         .from('avatars')
@@ -389,7 +390,7 @@ function computeKinship(identityId, targetId) {
 
     while (queue.length > 0) {
         const { id, path } = queue.shift();
-        if (path.length >= 6) continue;
+        if (path.length >= 6) continue; // จำกัดความลึกเพื่อประสิทธิภาพ (ความสัมพันธ์เกิน 6 ชั้นหาได้ยากในทางปฏิบัติ)
 
         for (const edge of (graph[id] || [])) {
             if (visited.has(edge.id)) continue;

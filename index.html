@@ -1040,6 +1040,7 @@
             document.getElementById('f-deathdate-group').style.display  = 'none';
             document.getElementById('f-birthdate-preview').textContent  = '';
             document.getElementById('f-deathdate-preview').textContent  = '';
+            document.getElementById('f-photo').value                    = '';
             document.getElementById('f-photo-preview-wrap').style.display = 'none';
             document.getElementById('modal-title').textContent = '➕ เพิ่มสมาชิกใหม่';
             document.getElementById('submit-btn').textContent  = 'บันทึก';
@@ -1324,7 +1325,7 @@
                         payload.photo_url = await uploadMemberPhoto(photoFile);
                     } catch (photoErr) {
                         console.warn('ไม่สามารถอัปโหลดรูปภาพ:', photoErr.message);
-                        showToast('⚠️ ไม่สามารถอัปโหลดรูปภาพ (ตรวจสอบ Supabase Storage bucket "avatars") — บันทึกโดยไม่มีรูป', true);
+                        showToast('⚠️ อัปโหลดรูปภาพไม่สำเร็จ — บันทึกโดยไม่มีรูป', true);
                     }
                 }
 
@@ -1334,10 +1335,8 @@
                     if (error) throw error;
                     showToast('✅ แก้ไขข้อมูลสำเร็จ!');
                 } else {
-                    // เพิ่มสมาชิกใหม่ (ไม่ส่ง parent_id หากไม่มี)
-                    const insertPayload = { ...payload };
-                    if (!parentId) delete insertPayload.parent_id;
-                    const { error } = await _supabase.from('profiles').insert([insertPayload]);
+                    // เพิ่มสมาชิกใหม่
+                    const { error } = await _supabase.from('profiles').insert([payload]);
                     if (error) throw error;
                     showToast('✅ เพิ่มสมาชิกสำเร็จ!');
                 }
