@@ -97,6 +97,9 @@ async function fetchFamilyMembers() {
         renderMemberCards(window._familyMembers);
         populateParentDropdown(window._familyMembers);
 
+        // อัปเดต identity bar (ถ้ามีฟังก์ชัน)
+        if (typeof updateIdentityBar === 'function') updateIdentityBar();
+
         // อัปเดตแผนผังถ้ากำลังแสดงอยู่
         const treeView = document.getElementById('tree-view');
         if (treeView && treeView.style.display === 'block') {
@@ -205,6 +208,8 @@ function renderMemberCards(members) {
         return;
     }
 
+    const identityId = window._identityId || null;
+
     containerEl.innerHTML = members.map(member => {
         const displayName = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
         const searchName  = `${member.first_name} ${member.last_name || ''}`.trim();
@@ -215,7 +220,7 @@ function renderMemberCards(members) {
         const formerName = [member.former_first_name, member.former_last_name].filter(Boolean).join(' ');
 
         // สถานะมีชีวิต/เสียชีวิต
-        const isAlive = member.is_alive !== false; // default true if null/undefined
+        const isAlive = member.is_alive !== false;
         const aliveText = isAlive
             ? '🟢 มีชีวิต'
             : `⚫ เสียชีวิต${member.death_date ? ' เมื่อวันที่ ' + formatThaiDate(member.death_date) : ''}`;
@@ -248,11 +253,32 @@ function renderMemberCards(members) {
             .filter(Boolean)
             .join('');
 
+        // ป้ายแสดงความสัมพันธ์กับตัวตน
+        let kinshipHtml = '';
+        if (identityId && identityId !== member.id) {
+            const k = computeKinship(identityId, member.id);
+            if (k) kinshipHtml = `<div class="kinship-label">${escapeHtml(k)}</div>`;
+        } else if (identityId && identityId === member.id) {
+            kinshipHtml = '<div class="kinship-label kinship-self">👤 ตัวเอง</div>';
+        }
+
+        // รูปภาพ
+        const photoHtml = member.photo_url
+            ? `<img src="${escapeHtml(member.photo_url)}" class="member-photo" alt="รูป" onerror="this.style.display='none'">`
+            : `<div class="member-photo-placeholder">${genderIcon}</div>`;
+
         return `
             <div class="member-card" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(searchName.toLowerCase())}" style="border-left-color:${accentColor};">
                 <div class="member-card-header">
-                    <h3 class="member-card-name">${genderIcon} ${escapeHtml(displayName)}</h3>
-                    <button class="btn-card-delete" data-member-id="${escapeHtml(member.id)}" title="ลบสมาชิก">🗑️ ลบ</button>
+                    ${photoHtml}
+                    <div class="member-card-title">
+                        <h3 class="member-card-name">${escapeHtml(displayName)}</h3>
+                        ${kinshipHtml}
+                    </div>
+                    <div class="card-btn-group">
+                        <button class="btn-card-edit" data-member-id="${escapeHtml(member.id)}" title="แก้ไขสมาชิก">✏️ แก้ไข</button>
+                        <button class="btn-card-delete" data-member-id="${escapeHtml(member.id)}" title="ลบสมาชิก">🗑️ ลบ</button>
+                    </div>
                 </div>
                 <div class="member-card-info">
                     ${formerName ? `<div><strong>ชื่อเดิม:</strong> ${escapeHtml(formerName)}</div>` : ''}
@@ -281,8 +307,220 @@ function renderMemberCards(members) {
  * แปลงความสัมพันธ์เป็นมุมมองของอีกฝ่าย
  */
 function _reverseRelation(relation) {
-    const map = { 'พ่อ': 'ลูก', 'แม่': 'ลูก', 'ลูก': 'พ่อ/แม่', 'พี่': 'น้อง', 'น้อง': 'พี่', 'สามี/ภรรยา': 'สามี/ภรรยา' };
+    const map = {
+        'พ่อ': 'ลูก', 'แม่': 'ลูก', 'ลูก': 'พ่อ/แม่',
+        'พี่': 'น้อง', 'น้อง': 'พี่',
+        'สามี/ภรรยา': 'สามี/ภรรยา',
+        'สามี': 'ภรรยา', 'ภรรยา': 'สามี',
+    };
     return map[relation] || relation;
+}
+
+/**
+ * อัปโหลดรูปภาพสมาชิกไปยัง Supabase Storage (bucket: avatars)
+ * หมายเหตุ: ต้องสร้าง bucket ชื่อ 'avatars' ใน Supabase Storage ก่อน
+ * และตั้งค่า RLS ให้สามารถ upload ได้
+ */
+async function uploadMemberPhoto(file) {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const safeExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) ? ext : 'jpg';
+    const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${safeExt}`;
+
+    const { error } = await _supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { contentType: file.type, upsert: false });
+
+    if (error) throw error;
+
+    const { data: urlData } = _supabase.storage.from('avatars').getPublicUrl(fileName);
+    return urlData.publicUrl;
+}
+
+/**
+ * อัปเดตข้อมูลสมาชิกในฐานข้อมูล
+ */
+async function updateMember(memberId, payload) {
+    await ensureSignedIn();
+    const { error } = await _supabase.from('profiles').update(payload).eq('id', memberId);
+    if (error) throw error;
+    showToast('✅ แก้ไขข้อมูลสำเร็จ!');
+    await fetchFamilyMembers();
+}
+
+/**
+ * คำนวณความสัมพันธ์ (ภาษาไทย) ระหว่างตัวตน (identityId) กับบุคคลเป้าหมาย (targetId)
+ * โดยใช้ BFS ผ่านกราฟความสัมพันธ์ในครอบครัว
+ */
+function computeKinship(identityId, targetId) {
+    const members      = window._familyMembers  || [];
+    const relationships = window._relationships || [];
+
+    if (identityId === targetId) return '(ตัวเอง)';
+
+    const byId = {};
+    members.forEach(m => { byId[m.id] = m; });
+
+    if (!byId[identityId] || !byId[targetId]) return null;
+
+    // สร้าง adjacency graph
+    const graph = {};
+    members.forEach(m => { graph[m.id] = []; });
+
+    members.forEach(m => {
+        if (m.parent_id && graph[m.parent_id] !== undefined) {
+            graph[m.id].push({ id: m.parent_id, dir: 'up' });
+            graph[m.parent_id].push({ id: m.id, dir: 'down' });
+        }
+    });
+
+    relationships.forEach(r => {
+        const spouseTypes = ['สามี/ภรรยา', 'สามี', 'ภรรยา'];
+        if (spouseTypes.includes(r.relation)) {
+            if (graph[r.from_id] && graph[r.to_id]) {
+                graph[r.from_id].push({ id: r.to_id, dir: 'spouse' });
+                graph[r.to_id].push({ id: r.from_id, dir: 'spouse' });
+            }
+        }
+    });
+
+    // BFS
+    const visited = new Set([identityId]);
+    const queue   = [{ id: identityId, path: [] }];
+
+    while (queue.length > 0) {
+        const { id, path } = queue.shift();
+        if (path.length >= 6) continue;
+
+        for (const edge of (graph[id] || [])) {
+            if (visited.has(edge.id)) continue;
+            visited.add(edge.id);
+
+            const newPath = [...path, { dir: edge.dir, id: edge.id }];
+            if (edge.id === targetId) return _pathToKinship(newPath, byId, identityId);
+            queue.push({ id: edge.id, path: newPath });
+        }
+    }
+    return null;
+}
+
+/**
+ * แปลง path BFS เป็นคำเรียกความสัมพันธ์ภาษาไทย
+ */
+function _pathToKinship(path, byId, identityId) {
+    const dirs   = path.map(p => p.dir).join('-');
+    const target = byId[path[path.length - 1].id];
+    const tGender  = target?.gender;
+    const isMale   = tGender === 'ชาย';
+    const isFemale = tGender === 'หญิง';
+    const g = (m, f, n) => isMale ? m : (isFemale ? f : (n !== undefined ? n : m + '/' + f));
+
+    switch (dirs) {
+        case 'up':    return g('พ่อ', 'แม่');
+        case 'down':  return 'ลูก';
+        case 'spouse': return g('สามี', 'ภรรยา');
+
+        case 'up-up': {
+            const parent = byId[path[0].id];
+            if (parent?.gender === 'ชาย') return g('ปู่', 'ย่า', 'ปู่/ย่า');
+            if (parent?.gender === 'หญิง') return g('ตา', 'ยาย', 'ตา/ยาย');
+            return g('ปู่/ตา', 'ย่า/ยาย', 'ปู่/ย่า/ตา/ยาย');
+        }
+        case 'down-down':  return 'หลาน';
+        case 'up-up-up':   return 'ทวด';
+        case 'down-down-down': return 'เหลน';
+
+        case 'up-down': {
+            const identity = byId[identityId];
+            const tBirth = target?.birth_date, iBirth = identity?.birth_date;
+            if (tBirth && iBirth) return tBirth < iBirth ? 'พี่' : 'น้อง';
+            return 'พี่/น้อง';
+        }
+
+        case 'up-up-down': {
+            const parent  = byId[path[0].id];
+            const pBirth  = parent?.birth_date;
+            const tBirth  = target?.birth_date;
+            const isOlder = (pBirth && tBirth) ? (tBirth < pBirth) : null;
+            if (isOlder === true)  return g('ลุง', 'ป้า', 'ลุง/ป้า');
+            if (isOlder === false) {
+                if (parent?.gender === 'หญิง') return g('น้าชาย', 'น้า', 'น้า');
+                return 'อา';
+            }
+            return g('ลุง/อา', 'ป้า/น้า', 'ลุง/ป้า/น้า/อา');
+        }
+
+        case 'up-up-down-down': {
+            const identity = byId[identityId];
+            const tBirth = target?.birth_date, iBirth = identity?.birth_date;
+            const prefix = (tBirth && iBirth) ? (tBirth < iBirth ? 'พี่' : 'น้อง') : '';
+            return prefix + 'ลูกพี่ลูกน้อง';
+        }
+
+        case 'spouse-up': {
+            const spouse = byId[path[0].id];
+            if (spouse?.gender === 'หญิง') return g('พ่อตา', 'แม่ยาย', 'พ่อตา/แม่ยาย');
+            if (spouse?.gender === 'ชาย')  return g('พ่อสามี', 'แม่สามี', 'พ่อสามี/แม่สามี');
+            return g('พ่อตา/พ่อสามี', 'แม่ยาย/แม่สามี', 'พ่อ/แม่คู่สมรส');
+        }
+
+        case 'up-spouse':
+            return g('พ่อเลี้ยง', 'แม่เลี้ยง', 'พ่อ/แม่เลี้ยง');
+
+        case 'down-spouse': {
+            const child = byId[path[0].id];
+            if (child?.gender === 'ชาย')  return 'ลูกสะใภ้';
+            if (child?.gender === 'หญิง') return 'ลูกเขย';
+            return 'ลูกเขย/ลูกสะใภ้';
+        }
+
+        case 'up-down-spouse': {
+            const sibling  = byId[path[1].id];
+            const identity = byId[identityId];
+            const sBirth   = sibling?.birth_date, iBirth = identity?.birth_date;
+            const isOlder  = (sBirth && iBirth) ? sBirth < iBirth : null;
+            const sibGender = sibling?.gender;
+            if (sibGender === 'ชาย') {
+                if (isOlder === true)  return 'พี่สะใภ้';
+                if (isOlder === false) return 'น้องสะใภ้';
+                return 'สะใภ้';
+            }
+            if (sibGender === 'หญิง') {
+                if (isOlder === true)  return 'พี่เขย';
+                if (isOlder === false) return 'น้องเขย';
+                return 'เขย';
+            }
+            return 'คู่สมรสพี่น้อง';
+        }
+
+        case 'spouse-up-down': {
+            const spouse = byId[path[0].id];
+            const sBirth = spouse?.birth_date, tBirth = target?.birth_date;
+            const isOlderThanSpouse = (sBirth && tBirth) ? tBirth < sBirth : null;
+            const spouseGender = spouse?.gender;
+            if (spouseGender === 'หญิง') {
+                if (isOlderThanSpouse === true)  return 'พี่เมีย';
+                if (isOlderThanSpouse === false) return 'น้องเมีย';
+                return 'พี่/น้องเมีย';
+            }
+            if (spouseGender === 'ชาย') {
+                if (isOlderThanSpouse === true)  return 'พี่ผัว';
+                if (isOlderThanSpouse === false) return 'น้องผัว';
+                return 'พี่/น้องผัว';
+            }
+            return 'พี่/น้องคู่สมรส';
+        }
+
+        case 'spouse-down': return 'ลูกเลี้ยง';
+
+        default: {
+            const parts = dirs.split('-');
+            const upC   = parts.filter(d => d === 'up').length;
+            const downC = parts.filter(d => d === 'down').length;
+            if (upC > 0 && downC === 0) return 'บรรพบุรุษ';
+            if (downC > 0 && upC === 0) return 'ลูกหลาน';
+            return 'ญาติ';
+        }
+    }
 }
 
 /**
@@ -320,7 +558,8 @@ function renderFamilyTree(members) {
     }
 
     const NODE_W = 150;
-    const NODE_H = 68;
+    const identityId = window._identityId || null;
+    const NODE_H = identityId ? 88 : 68;
     const H_GAP  = 24;
     const V_GAP  = 64;
     const PAD    = 24;
@@ -434,6 +673,12 @@ function renderFamilyTree(members) {
             <div class="tree-node-name">${genderIcon} ${escapeHtml(fullName)}</div>
             ${m.nickname ? `<div class="tree-node-nickname">(${escapeHtml(m.nickname)})</div>` : ''}
             ${subText ? `<div class="tree-node-sub">${escapeHtml(subText)}</div>` : ''}
+            ${(() => {
+                if (!identityId) return '';
+                if (identityId === m.id) return '<div class="tree-node-kinship tree-kinship-self">👤 ตัวเอง</div>';
+                const k = computeKinship(identityId, m.id);
+                return k ? `<div class="tree-node-kinship">${escapeHtml(k)}</div>` : '';
+            })()}
         </div>`;
     }).join('');
 
