@@ -765,8 +765,9 @@ async function ensureSignedIn() {
 document.addEventListener('DOMContentLoaded', fetchFamilyMembers);
 
 /**
- * แสดงแผนผังเครือญาติแบบ Pedigree View ด้วย D3.js
- * Root (บุคคลที่เลือกจาก "กำหนดตัวตน") อยู่ซ้ายสุด บรรพบุรุษแผ่ไปทางขวา
+ * แสดงแผนผังเครือญาติแบบ Full-Tree View ด้วย D3.js
+ * Root (บุคคลที่เลือกจาก "กำหนดตัวตน") อยู่กึ่งกลาง ลูกหลานแผ่ไปทางซ้าย บรรพบุรุษแผ่ไปทางขวา
+ * แสดงทุกคนที่มีความสัมพันธ์เชื่อมถึงกัน (ทั้งบรรพบุรุษ ลูกหลาน และพี่น้อง)
  * รองรับ Zoom / Pan บน Mobile และเส้นเชื่อมแบบหักมุม (Orthogonal Elbow Lines)
  */
 function renderFamilyTree() {
@@ -774,7 +775,6 @@ function renderFamilyTree() {
     if (!container || !window.d3) return;
 
     // ล้าง SVG เดิมและ placeholder เดิม (คงปุ่มควบคุมไว้)
-    // placeholder เก่าต้องถูกลบก่อน เพราะอาจมาจาก render ครั้งก่อนที่แสดง state ต่างกัน
     const existingSvg = container.querySelector('svg');
     if (existingSvg) existingSvg.remove();
     container.querySelectorAll('.state-placeholder').forEach(el => el.remove());
@@ -808,59 +808,95 @@ function renderFamilyTree() {
     members.forEach(m => { byId[m.id] = m; });
 
     // fatherOf[childId] = fatherId, motherOf[childId] = motherId
-    // (from_id = ลูก, to_id = พ่อหรือแม่)
-    const fatherOf = {}, motherOf = {};
+    // childrenOf[parentId] = [childId, ...]
+    const fatherOf = {}, motherOf = {}, childrenOf = {};
     relationships.forEach(r => {
         if (!byId[r.from_id] || !byId[r.to_id]) return;
         if (r.relation === 'พ่อ')      fatherOf[r.from_id] = r.to_id;
         else if (r.relation === 'แม่') motherOf[r.from_id] = r.to_id;
     });
+    members.forEach(m => {
+        [fatherOf[m.id], motherOf[m.id]].filter(Boolean).forEach(pid => {
+            if (!childrenOf[pid]) childrenOf[pid] = [];
+            childrenOf[pid].push(m.id);
+        });
+    });
 
     // ─── กำหนด Root ───
-    // (members.length === 0 ถูกตรวจสอบแล้วด้านบน จึงเข้าถึง members[0] ได้อย่างปลอดภัย)
     const rootId = (identityId && byId[identityId]) ? identityId : members[0].id;
 
-    // ─── สร้าง Pedigree Tree แบบ Recursive (บรรพบุรุษเท่านั้น) ───
-    // MAX_ANCESTOR_DEPTH: depth 0 = Root, depth N = รุ่นบรรพบุรุษที่ N (ไม่เกิน 5 รุ่น)
-    const MAX_ANCESTOR_DEPTH = 5;
-    const nodeMap   = new Map(); // "id@depth" → node
+    // ─── BFS เพื่อหาสมาชิกทั้งหมดที่มีความสัมพันธ์เชื่อมถึงกัน ───
+    // gen 0 = root, gen บวก = บรรพบุรุษ (ทางขวา), gen ลบ = ลูกหลาน (ทางซ้าย)
+    const MAX_ANCESTOR_DEPTH   = 5;
+    const MAX_DESCENDANT_DEPTH = 5;
+    const genOf = {};
+    genOf[rootId] = 0;
+    const bfsQueue   = [rootId];
+    const bfsVisited = new Set([rootId]);
 
-    function buildAncestor(personId, depth) {
-        if (!personId || !byId[personId] || depth > MAX_ANCESTOR_DEPTH) return null;
-        const key = `${personId}@${depth}`;
-        if (nodeMap.has(key)) return nodeMap.get(key);
+    while (bfsQueue.length > 0) {
+        const id  = bfsQueue.shift();
+        const gen = genOf[id];
 
-        const node = { id: personId, depth, slot: 0, father: null, mother: null };
-        nodeMap.set(key, node);
-        node.father = buildAncestor(fatherOf[personId] || null, depth + 1);
-        node.mother = buildAncestor(motherOf[personId] || null, depth + 1);
-        return node;
-    }
+        // พ่อ/แม่ → gen + 1 (บรรพบุรุษ)
+        if (gen < MAX_ANCESTOR_DEPTH) {
+            [fatherOf[id], motherOf[id]].filter(Boolean).forEach(pid => {
+                if (!bfsVisited.has(pid)) {
+                    bfsVisited.add(pid);
+                    genOf[pid] = gen + 1;
+                    bfsQueue.push(pid);
+                }
+            });
+        }
 
-    const rootNode = buildAncestor(rootId, 0);
-
-    // ─── กำหนด slot (ตำแหน่ง Y) ด้วย DFS ───
-    // ใบสุดท้าย (บรรพบุรุษที่ไม่มีข้อมูลพ่อแม่) จะได้ slot ต่อเนื่อง
-    // โหนดพ่อแม่จะได้ slot = ค่าเฉลี่ยของลูก
-    let leafSlot = 0;
-
-    function assignSlots(node) {
-        if (!node) return;
-        const hasFather = !!node.father;
-        const hasMother = !!node.mother;
-        if (!hasFather && !hasMother) {
-            node.slot = leafSlot++;
-        } else {
-            assignSlots(node.father);
-            assignSlots(node.mother);
-            const slots = [];
-            if (hasFather) slots.push(node.father.slot);
-            if (hasMother) slots.push(node.mother.slot);
-            node.slot = slots.reduce((s, v) => s + v, 0) / slots.length;
+        // ลูก → gen - 1 (ลูกหลาน)
+        if (gen > -MAX_DESCENDANT_DEPTH) {
+            (childrenOf[id] || []).forEach(cid => {
+                if (!bfsVisited.has(cid)) {
+                    bfsVisited.add(cid);
+                    genOf[cid] = gen - 1;
+                    bfsQueue.push(cid);
+                }
+            });
         }
     }
 
-    assignSlots(rootNode);
+    // ─── สร้าง node objects และเชื่อมโยงความสัมพันธ์ ───
+    const nodeMap = new Map(); // id → node
+    bfsVisited.forEach(id => {
+        nodeMap.set(id, { id, gen: genOf[id], slot: 0, father: null, mother: null, children: [] });
+    });
+    nodeMap.forEach((node, id) => {
+        if (fatherOf[id] && nodeMap.has(fatherOf[id])) node.father = nodeMap.get(fatherOf[id]);
+        if (motherOf[id] && nodeMap.has(motherOf[id])) node.mother = nodeMap.get(motherOf[id]);
+        (childrenOf[id] || []).forEach(cid => {
+            if (nodeMap.has(cid)) node.children.push(nodeMap.get(cid));
+        });
+    });
+
+    // ─── กำหนด slot (ตำแหน่ง Y) โดยประมวลผลจาก generation ลูกหลาน → root → บรรพบุรุษ ───
+    // ลูกหลานได้ slot ก่อน แล้วบรรพบุรุษจะได้ค่าเฉลี่ยจากลูก
+    const allGens  = [...new Set(Object.values(genOf))].sort((a, b) => a - b);
+    let leafSlot   = 0;
+    const slotDone = new Set();
+
+    allGens.forEach(gen => {
+        nodeMap.forEach(node => {
+            if (node.gen !== gen || slotDone.has(node.id)) return;
+            slotDone.add(node.id);
+
+            const slots = [];
+            // รวม slot ของลูกที่ประมวลผลแล้ว (gen ต่ำกว่า → ประมวลผลก่อน)
+            node.children.forEach(c => { if (slotDone.has(c.id)) slots.push(c.slot); });
+            // รวม slot ของพ่อแม่ที่ประมวลผลแล้วด้วย (เช่น กรณีประมวลผลบรรพบุรุษก่อน)
+            if (node.father && slotDone.has(node.father.id)) slots.push(node.father.slot);
+            if (node.mother && slotDone.has(node.mother.id)) slots.push(node.mother.slot);
+
+            node.slot = slots.length > 0
+                ? slots.reduce((s, v) => s + v, 0) / slots.length
+                : leafSlot++;
+        });
+    });
 
     // ─── Layout constants ───
     const NODE_W  = 145, NODE_H  = 90;
@@ -875,19 +911,18 @@ function renderFamilyTree() {
     // Shadow opacity
     const SHADOW_ROOT = 0.15, SHADOW_DEFAULT = 0.09;
 
-    // ─── แปลง slot / depth → พิกัด pixel ───
-    const slotToY  = s => PAD + s * SLOT_H;
-    const depthToX = d => PAD + d * GEN_W;
+    // ─── แปลง gen / slot → พิกัด pixel ───
+    // offset minGen เพื่อให้ gen ลบ (ลูกหลาน) อยู่ทางซ้ายและ X ไม่ติดลบ
+    let minGen = 0;
+    nodeMap.forEach(n => { if (n.gen < minGen) minGen = n.gen; });
 
-    function assignPositions(node) {
-        if (!node) return;
-        node.x = depthToX(node.depth);
+    const genToX  = gen => PAD + (gen - minGen) * GEN_W;
+    const slotToY = s   => PAD + s * SLOT_H;
+
+    nodeMap.forEach(node => {
+        node.x = genToX(node.gen);
         node.y = slotToY(node.slot);
-        assignPositions(node.father);
-        assignPositions(node.mother);
-    }
-
-    assignPositions(rootNode);
+    });
 
     // คำนวณขนาด SVG จากโหนดทั้งหมด
     let maxX = 0, maxY = 0;
@@ -930,65 +965,63 @@ function renderFamilyTree() {
     window._treeZoom = zoom;
 
     // ─── วาด Elbow Lines (เส้นหักมุม) ก่อนวาดการ์ด เพื่อให้อยู่ด้านหลัง ───
+    // เส้นเชื่อมจะลาก: ขอบขวาของ node (gen ต่ำ) → ขอบซ้ายของพ่อ/แม่ (gen สูงกว่า)
     const drawnLines = new Set();
 
     function drawLines(node) {
-        if (!node) return;
+        if (!node || drawnLines.has(node.id)) return;
+        drawnLines.add(node.id);
+
         const parents = [node.father, node.mother].filter(Boolean);
-        if (!parents.length) return;
+        if (parents.length) {
+            const srcX = node.x + NODE_W;     // ขอบขวาของการ์ด
+            const srcY = node.y + NODE_H / 2; // กึ่งกลาง Y ของการ์ด
+            const jctX = srcX + H_GAP / 2;    // X จุดเชื่อม (junction) กึ่งกลางช่องว่าง
 
-        const lineKey = `${node.id}@${node.depth}`;
-        if (drawnLines.has(lineKey)) return;
-        drawnLines.add(lineKey);
-
-        const srcX = node.x + NODE_W;          // ขอบขวาของการ์ด
-        const srcY = node.y + NODE_H / 2;      // กึ่งกลาง Y ของการ์ด
-        const jctX = srcX + H_GAP / 2;         // X จุดเชื่อม (junction) กึ่งกลางช่องว่าง
-
-        // เส้นแนวนอนจากการ์ดถึง junction
-        g.append('line')
-            .attr('x1', srcX).attr('y1', srcY)
-            .attr('x2', jctX).attr('y2', srcY)
-            .attr('stroke', '#86efac').attr('stroke-width', 2);
-
-        if (parents.length === 2) {
-            // เส้นแนวตั้งที่ junction เชื่อมระดับพ่อ-แม่
-            const topY = Math.min(node.father.y, node.mother.y) + NODE_H / 2;
-            const botY = Math.max(node.father.y, node.mother.y) + NODE_H / 2;
+            // เส้นแนวนอนจากการ์ดถึง junction
             g.append('line')
-                .attr('x1', jctX).attr('y1', topY)
-                .attr('x2', jctX).attr('y2', botY)
+                .attr('x1', srcX).attr('y1', srcY)
+                .attr('x2', jctX).attr('y2', srcY)
                 .attr('stroke', '#86efac').attr('stroke-width', 2);
+
+            if (parents.length === 2) {
+                // เส้นแนวตั้งที่ junction เชื่อมระดับพ่อ-แม่
+                const topY = Math.min(node.father.y, node.mother.y) + NODE_H / 2;
+                const botY = Math.max(node.father.y, node.mother.y) + NODE_H / 2;
+                g.append('line')
+                    .attr('x1', jctX).attr('y1', topY)
+                    .attr('x2', jctX).attr('y2', botY)
+                    .attr('stroke', '#86efac').attr('stroke-width', 2);
+            }
+
+            // เส้นแนวนอนจาก junction ถึงขอบซ้ายของการ์ดพ่อ/แม่แต่ละคน
+            parents.forEach(p => {
+                const pY = p.y + NODE_H / 2;
+                g.append('line')
+                    .attr('x1', jctX).attr('y1', pY)
+                    .attr('x2', p.x).attr('y2', pY)
+                    .attr('stroke', '#86efac').attr('stroke-width', 2);
+            });
         }
 
-        // เส้นแนวนอนจาก junction ถึงขอบซ้ายของการ์ดพ่อ/แม่แต่ละคน
-        parents.forEach(p => {
-            const pY = p.y + NODE_H / 2;
-            g.append('line')
-                .attr('x1', jctX).attr('y1', pY)
-                .attr('x2', p.x).attr('y2', pY)
-                .attr('stroke', '#86efac').attr('stroke-width', 2);
-        });
-
+        node.children.forEach(c => drawLines(c));
         drawLines(node.father);
         drawLines(node.mother);
     }
 
-    drawLines(rootNode);
+    nodeMap.forEach(node => drawLines(node));
 
     // ─── วาด Node Cards ───
     const drawnNodes = new Set();
 
     function drawNode(node) {
-        if (!node) return;
-        const nodeKey = `${node.id}@${node.depth}`;
-        if (drawnNodes.has(nodeKey)) return;
-        drawnNodes.add(nodeKey);
+        if (!node || drawnNodes.has(node.id)) return;
+        drawnNodes.add(node.id);
 
         const member = byId[node.id];
         if (!member) return;
 
-        const isRoot   = node.id === rootId && node.depth === 0;
+        const isRoot   = node.id === rootId;
         const isAlive  = member.is_alive !== false;
         const isMale   = member.gender === 'ชาย';
         const isFemale = member.gender === 'หญิง';
@@ -1091,9 +1124,10 @@ function renderFamilyTree() {
             }
         }
 
+        node.children.forEach(c => drawNode(c));
         drawNode(node.father);
         drawNode(node.mother);
     }
 
-    drawNode(rootNode);
+    nodeMap.forEach(node => drawNode(node));
 }
