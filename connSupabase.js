@@ -733,8 +733,12 @@ function renderFamilyTree() {
     });
 
     // ─── D3 tree layout ───
-    const NODE_W = 165, NODE_H = 80;
+    const NODE_W = 165, NODE_H = 110;
     const H_SEP  = 20,  V_SEP  = 56;
+    // ─── Photo avatar constants ───
+    const PHOTO_R  = 20;                  // รัศมีรูปโปรไฟล์ (px)
+    const PHOTO_CX = NODE_W / 2;         // กึ่งกลาง x ของรูป
+    const PHOTO_CY = 26;                 // กึ่งกลาง y ของรูป (จากบนสุดของ node)
     // Separation: 1 = พี่น้อง (siblings), 1.4 = ลูกพี่ลูกน้อง (cousins / different parent)
     const SIBLING_SEP = 1, COUSIN_SEP = 1.4;
 
@@ -764,8 +768,14 @@ function renderFamilyTree() {
     svgEl.style.height = Math.min(svgH, 600) + 'px';
     container.insertBefore(svgEl, container.firstChild); // แทรกก่อนปุ่มควบคุม
 
-    const svg = d3.select(svgEl);
-    const g   = svg.append('g');
+    const svg  = d3.select(svgEl);
+    const defs = svg.append('defs');
+    // clipPath เดียวสำหรับทุก node (พิกัดอยู่ใน local space ของแต่ละ node เหมือนกัน)
+    const AVATAR_CLIP_ID = 'clip-tree-avatar';
+    defs.append('clipPath').attr('id', AVATAR_CLIP_ID)
+        .append('circle')
+        .attr('cx', NODE_W / 2).attr('cy', 26).attr('r', PHOTO_R);
+    const g    = svg.append('g');
 
     // ─── Zoom / Pan ───
     const zoom = d3.zoom()
@@ -956,10 +966,35 @@ function renderFamilyTree() {
                 .attr('stroke', strokeColor).attr('stroke-width', 2)
                 .style('filter', 'drop-shadow(0 2px 6px rgba(0,0,0,0.09))');
 
+            // ─── รูปโปรไฟล์วงกลม ───
+            // วงกลมพื้นหลัง
+            ng.append('circle')
+                .attr('cx', PHOTO_CX).attr('cy', PHOTO_CY).attr('r', PHOTO_R)
+                .attr('fill', fillColor)
+                .attr('stroke', strokeColor).attr('stroke-width', 1.5);
+
+            if (member.photo_url) {
+                // แสดงรูปจริง (ถูก clip เป็นวงกลม)
+                ng.append('image')
+                    .attr('href', member.photo_url)
+                    .attr('x', PHOTO_CX - PHOTO_R).attr('y', PHOTO_CY - PHOTO_R)
+                    .attr('width', PHOTO_R * 2).attr('height', PHOTO_R * 2)
+                    .attr('clip-path', `url(#${AVATAR_CLIP_ID})`);
+            } else {
+                // Placeholder: ตัวอักษรแรกของชื่อ
+                const initial = member.first_name ? member.first_name.charAt(0) : '?';
+                ng.append('text')
+                    .attr('x', PHOTO_CX).attr('y', PHOTO_CY + 6)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', '15px').attr('font-weight', '700')
+                    .attr('fill', strokeColor)
+                    .text(initial);
+            }
+
             // Line 1: first_name - last_name (ไม่มี emoji เพศ)
             const fullName = [member.first_name, member.last_name].filter(Boolean).join(' - ');
             ng.append('text')
-                .attr('x', NODE_W / 2).attr('y', 26)
+                .attr('x', NODE_W / 2).attr('y', 60)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '12px').attr('font-weight', '700').attr('fill', textColor)
                 .text(fullName.length > 22 ? fullName.slice(0, 22) + '…' : fullName);
@@ -967,7 +1002,7 @@ function renderFamilyTree() {
             // Line 2: (nickname)
             if (member.nickname) {
                 ng.append('text')
-                    .attr('x', NODE_W / 2).attr('y', 44)
+                    .attr('x', NODE_W / 2).attr('y', 76)
                     .attr('text-anchor', 'middle')
                     .attr('font-size', '11px').attr('fill', textColor)
                     .text(`(${member.nickname})`);
