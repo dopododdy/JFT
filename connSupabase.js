@@ -858,6 +858,15 @@ function renderFamilyTree() {
                     genOf[cid] = gen - 1;
                     bfsQueue.push({ id: cid, dir: 'down' });
                 }
+                // เพิ่มพ่อ/แม่อีกฝ่ายของลูก (คู่สมรส) ในลำดับเดียวกับ node ปัจจุบัน
+                // เพื่อให้แสดงทั้งพ่อและแม่ในแต่ละลำดับ — ไม่เพิ่มลงคิวจึงไม่ขยายสาขาต่อ
+                const fP = fatherOf[cid], mP = motherOf[cid];
+                [fP, mP].filter(pid => pid && pid !== id).forEach(pid => {
+                    if (!bfsVisited.has(pid)) {
+                        bfsVisited.add(pid);
+                        genOf[pid] = gen;
+                    }
+                });
             });
         }
     }
@@ -897,6 +906,24 @@ function renderFamilyTree() {
                 ? slots.reduce((s, v) => s + v, 0) / slots.length
                 : leafSlot++;
         });
+    });
+
+    // ─── แก้ไข slot ซ้ำกันภายใน generation เดียวกัน ───
+    // ทำหลังจากคำนวณ slot ครบทุก node แล้ว — ค่า slot จะถูกใช้ครั้งแรกในขั้นตอน genToX/slotToY ถัดไป
+    // จัดเรียง node ในแต่ละ gen ตาม slot แล้วให้ระยะห่างขั้นต่ำ 1 ระหว่างกัน
+    // (ป้องกัน node ซ้อนทับกัน เช่น พ่อ-แม่ที่มีลูกคนเดียวกันได้ slot เฉลี่ยเท่ากัน)
+    const genGroups = {};
+    nodeMap.forEach(n => {
+        if (!genGroups[n.gen]) genGroups[n.gen] = [];
+        genGroups[n.gen].push(n);
+    });
+    Object.values(genGroups).forEach(nodes => {
+        nodes.sort((a, b) => a.slot - b.slot);
+        for (let i = 1; i < nodes.length; i++) {
+            if (nodes[i].slot < nodes[i - 1].slot + 1) {
+                nodes[i].slot = nodes[i - 1].slot + 1;
+            }
+        }
     });
 
     // ─── Layout constants ───
