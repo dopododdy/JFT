@@ -839,7 +839,7 @@
             border-radius: 1rem;
             background: #fafffe;
             overflow: hidden;
-            min-height: 420px;
+            height: 600px;
             position: relative;
         }
         #tree-container > svg {
@@ -1557,7 +1557,11 @@
             if (spouseBtn) {
                 e.stopPropagation();
                 const inner = spouseBtn.closest('.card-flip-inner');
-                if (inner) inner.classList.add('flipped');
+                if (inner) {
+                    const backFace = inner.querySelector('.card-face-back');
+                    if (backFace && backFace.offsetHeight > 0) inner.style.minHeight = backFace.offsetHeight + 'px';
+                    inner.classList.add('flipped');
+                }
                 return;
             }
             // Flip back to front face
@@ -1565,7 +1569,10 @@
             if (backFlipBtn) {
                 e.stopPropagation();
                 const inner = backFlipBtn.closest('.card-flip-inner');
-                if (inner) inner.classList.remove('flipped');
+                if (inner) {
+                    inner.style.minHeight = '';
+                    inner.classList.remove('flipped');
+                }
                 return;
             }
             // Click card body to open relation modal (only when card is expanded)
