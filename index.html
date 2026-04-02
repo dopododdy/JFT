@@ -307,17 +307,33 @@
         }
         .member-card {
             background: white;
-            padding: 16px;
+            padding: 12px 16px;
             border-radius: 12px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.08);
             border-left: 5px solid #059669;
             transition: box-shadow 0.2s, transform 0.2s;
-            cursor: pointer;
         }
-        .member-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.13); transform: translateY(-2px); }
+        .member-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.13); }
         .member-card.deceased { border-left-color: #6b7280 !important; }
         .member-card.deceased .member-card-name { color: #1f2937; }
         .member-card.deceased .member-card-info { color: #374151; }
+
+        /* ── Collapsible card ── */
+        .member-card-summary {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            padding: 2px 0;
+        }
+        .member-summary-gender { font-size: 1.25rem; flex-shrink: 0; }
+        .member-summary-nick   { font-weight: 600; font-size: 0.95rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .member-summary-status { font-size: 0.9rem; flex-shrink: 0; }
+        .member-summary-arrow  { color: #94a3b8; font-size: 1rem; flex-shrink: 0; transition: transform 0.2s; display: inline-block; }
+        .member-card.card-expanded .member-summary-arrow { transform: rotate(180deg); }
+        .member-card-body { display: none; padding-top: 10px; }
+        .member-card.card-expanded .member-card-body { display: block; }
         .member-card-info {
             font-size: 0.85rem;
             color: #475569;
@@ -856,28 +872,6 @@
             line-height: 1;
         }
         .tree-ctrl-btn:hover { background: #f0fdf4; }
-        .tree-legend {
-            position: absolute;
-            bottom: 8px;
-            left: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-            font-size: 0.72rem;
-            color: #64748b;
-            background: rgba(255,255,255,0.88);
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 6px 9px;
-            pointer-events: none;
-        }
-        .tree-legend-row { display: flex; align-items: center; gap: 6px; }
-        .tree-legend-line {
-            width: 24px;
-            height: 2px;
-            display: inline-block;
-            border-radius: 1px;
-        }
 
         /* ───── Responsive ───── */
         @media (max-width: 600px) {
@@ -958,12 +952,6 @@
                     <button class="tree-ctrl-btn" onclick="treeZoomIn()" title="ซูมเข้า">＋</button>
                     <button class="tree-ctrl-btn" onclick="treeZoomOut()" title="ซูมออก">－</button>
                     <button class="tree-ctrl-btn" onclick="treeZoomReset()" title="รีเซ็ตมุมมอง">⟳</button>
-                    <button class="tree-ctrl-btn" id="btn-hide-married-in" onclick="toggleHideMarriedIn()" title="ซ่อน/แสดงคู่สมรสที่ไม่มีบรรพบุรุษ">👁 คู่สมรส</button>
-                </div>
-                <div class="tree-legend">
-                    <div class="tree-legend-row"><span class="tree-legend-line" style="background:#86efac;"></span> สายพ่อ-แม่</div>
-                    <div class="tree-legend-row"><span class="tree-legend-line" style="background:#f59e0b;"></span> คู่สมรส</div>
-                    <div class="tree-legend-row"><span class="tree-legend-line" style="background:repeating-linear-gradient(90deg,#fbbf24 0 5px,transparent 5px 8px);"></span> พ่อ-แม่ที่สอง</div>
                 </div>
             </div>
         </div>
@@ -1235,18 +1223,6 @@
             if (window._treeSvg && window._treeZoom) window._treeZoom.scaleBy(window._treeSvg, 0.77);
         }
         function treeZoomReset() {
-            if (typeof renderFamilyTree === 'function') renderFamilyTree();
-        }
-        function toggleHideMarriedIn() {
-            window._treeHideMarriedIn = !window._treeHideMarriedIn;
-            const btn = document.getElementById('btn-hide-married-in');
-            if (btn) {
-                btn.style.opacity     = window._treeHideMarriedIn ? '1' : '0.55';
-                btn.style.fontWeight  = window._treeHideMarriedIn ? '700' : '';
-                btn.title = window._treeHideMarriedIn
-                    ? 'แสดงคู่สมรสที่ไม่มีบรรพบุรุษ (ปัจจุบัน: ซ่อนอยู่)'
-                    : 'ซ่อนคู่สมรสที่ไม่มีบรรพบุรุษ (ปัจจุบัน: แสดงอยู่)';
-            }
             if (typeof renderFamilyTree === 'function') renderFamilyTree();
         }
 
@@ -1554,6 +1530,14 @@
                 menu.classList.remove('open');
             }
 
+            // Toggle member card collapse
+            const summaryEl = e.target.closest('.member-card-summary');
+            if (summaryEl) {
+                const card = summaryEl.closest('.member-card');
+                if (card) card.classList.toggle('card-expanded');
+                return;
+            }
+
             // Edit button on card
             const editBtn = e.target.closest('.btn-card-edit');
             if (editBtn) {
@@ -1584,9 +1568,9 @@
                 if (inner) inner.classList.remove('flipped');
                 return;
             }
-            // Click card to open relation modal
+            // Click card body to open relation modal (only when card is expanded)
             const card = e.target.closest('.member-card');
-            if (card && document.getElementById('members-container').contains(card)) {
+            if (card && card.classList.contains('card-expanded') && document.getElementById('members-container').contains(card) && !e.target.closest('.member-card-summary')) {
                 openRelationModal(card.dataset.id, e);
                 return;
             }
