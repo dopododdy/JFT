@@ -6,6 +6,9 @@
     <title>แผนผังครอบครัวจวงพลงาม (JFT)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -841,7 +844,7 @@
                 <!-- วันเกิด -->
                 <div class="form-group">
                     <label for="f-birthdate">วันเดือนปีเกิด (พ.ศ.)</label>
-                    <input type="date" id="f-birthdate" oninput="updateDatePreview('f-birthdate','f-birthdate-preview')" />
+                    <input type="text" id="f-birthdate" placeholder="เลือกวันที่" readonly />
                     <div id="f-birthdate-preview" style="font-size:0.8rem;color:#059669;margin-top:0.2rem;min-height:1.1em;"></div>
                 </div>
                 <!-- สถานะ มีชีวิต/เสียชีวิต -->
@@ -859,7 +862,7 @@
                 <!-- วันที่เสียชีวิต (แสดงเฉพาะเมื่อเลือก เสียชีวิต) -->
                 <div class="form-group" id="f-deathdate-group" style="display:none;">
                     <label for="f-deathdate">เสียชีวิตเมื่อวันที่ (พ.ศ.)</label>
-                    <input type="date" id="f-deathdate" oninput="updateDatePreview('f-deathdate','f-deathdate-preview')" />
+                    <input type="text" id="f-deathdate" placeholder="เลือกวันที่" readonly />
                     <div id="f-deathdate-preview" style="font-size:0.8rem;color:#6b7280;margin-top:0.2rem;min-height:1.1em;"></div>
                 </div>
                 <!-- เบอร์โทร + ไลน์ -->
@@ -1057,7 +1060,7 @@
             document.getElementById('f-former-lastname').value  = member.former_last_name || '';
             document.getElementById('f-gender').value           = member.gender || '';
             document.getElementById('f-marital').value          = member.marital_status || 'โสด';
-            document.getElementById('f-birthdate').value        = member.birth_date || '';
+            window._fpBirthdate.setDate(member.birth_date || null, false);
             document.getElementById('f-phone').value            = member.phone || '';
             document.getElementById('f-line').value             = member.line_id || '';
             document.getElementById('f-workplace').value        = member.workplace || '';
@@ -1074,11 +1077,11 @@
             if (member.is_alive === false) {
                 document.getElementById('f-alive-no').checked = true;
                 document.getElementById('f-deathdate-group').style.display = '';
-                document.getElementById('f-deathdate').value = member.death_date || '';
+                window._fpDeathdate.setDate(member.death_date || null, false);
             } else {
                 document.getElementById('f-alive-yes').checked = true;
                 document.getElementById('f-deathdate-group').style.display = 'none';
-                document.getElementById('f-deathdate').value = '';
+                window._fpDeathdate.clear();
             }
 
             // แสดงรูปภาพปัจจุบัน
@@ -1098,6 +1101,8 @@
             _editMemberId = null;
             document.getElementById('modal-backdrop').classList.remove('open');
             document.getElementById('add-member-form').reset();
+            window._fpBirthdate && window._fpBirthdate.clear();
+            window._fpDeathdate && window._fpDeathdate.clear();
             document.getElementById('f-deathdate-group').style.display  = 'none';
             document.getElementById('f-birthdate-preview').textContent  = '';
             document.getElementById('f-deathdate-preview').textContent  = '';
@@ -1129,6 +1134,66 @@
             document.getElementById(previewId).textContent = val ? formatThaiDate(beDateToISO(val)) : '';
         }
 
+        /* ── Thai Buddhist-Era date picker ── */
+        function initThaiDatePicker(inputId, previewId) {
+            const OFFSET = 543;
+            const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                                'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+            let fixingYear = false;
+            let yearEl = null;
+
+            function fixCalYear(fp) {
+                if (fixingYear) return;
+                const yr = yearEl || (fp.calendarContainer && fp.calendarContainer.querySelector('.numInput.cur-year'));
+                if (yr) yr.value = fp.currentYear + OFFSET;
+            }
+
+            const fp = flatpickr('#' + inputId, {
+                locale: 'th',
+                dateFormat: 'Y-m-d',
+                altInput: true,
+                altFormat: 'j F Y',
+                disableMobile: true,
+                formatDate: function(date, format) {
+                    if (format === 'j F Y') {
+                        return date.getDate() + ' ' + thaiMonths[date.getMonth()] + ' ' + (date.getFullYear() + OFFSET);
+                    }
+                    return date.getFullYear() + '-' +
+                           String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                           String(date.getDate()).padStart(2, '0');
+                },
+                onReady: function(_, __, fp) {
+                    yearEl = fp.calendarContainer && fp.calendarContainer.querySelector('.numInput.cur-year');
+                    fixCalYear(fp);
+                    if (yearEl) {
+                        yearEl.addEventListener('input', function() {
+                            const be = parseInt(yearEl.value);
+                            if (!isNaN(be) && be > 2400) {
+                                fixingYear = true;
+                                fp.changeYear(be - OFFSET);
+                                fixingYear = false;
+                                requestAnimationFrame(function() { yearEl.value = be; });
+                            }
+                        });
+                    }
+                    // Update label's `for` to focus the visible altInput
+                    const lbl = document.querySelector('label[for="' + inputId + '"]');
+                    if (lbl && fp.altInput) {
+                        fp.altInput.id = inputId + '-display';
+                        lbl.setAttribute('for', fp.altInput.id);
+                    }
+                },
+                onMonthChange: function(_, __, fp) { fixCalYear(fp); },
+                onYearChange: function(_, __, fp) { requestAnimationFrame(function() { fixCalYear(fp); }); },
+                onChange: function(selectedDates, dateStr) {
+                    var el = document.getElementById(previewId);
+                    if (el) el.textContent = dateStr ? formatThaiDate(dateStr) : '';
+                }
+            });
+
+            return fp;
+        }
+
         /* ── แปลงวันที่พ.ศ. → ค.ศ. (ถ้าปี > 2400 ถือว่าเป็นพ.ศ.) ── */
         function beDateToISO(dateStr) {
             if (!dateStr) return null;
@@ -1147,7 +1212,7 @@
             const isDead = document.getElementById('f-alive-no').checked;
             document.getElementById('f-deathdate-group').style.display = isDead ? '' : 'none';
             if (!isDead) {
-                document.getElementById('f-deathdate').value = '';
+                window._fpDeathdate && window._fpDeathdate.clear();
                 document.getElementById('f-deathdate-preview').textContent = '';
             }
         }
@@ -1519,6 +1584,10 @@
         function toggleMenu() {
             document.getElementById('hamburger-menu').classList.toggle('open');
         }
+
+        /* ── Initialize Thai date pickers ── */
+        window._fpBirthdate = initThaiDatePicker('f-birthdate', 'f-birthdate-preview');
+        window._fpDeathdate = initThaiDatePicker('f-deathdate', 'f-deathdate-preview');
     </script>
 </body>
 </html>
