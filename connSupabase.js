@@ -95,16 +95,10 @@ async function fetchFamilyMembers() {
         if (countEl) countEl.textContent = window._familyMembers.length > 0 ? window._familyMembers.length + ' คน' : '';
 
         renderMemberCards(window._familyMembers);
-        populateParentDropdown(window._familyMembers);
+        populateParentDropdowns(window._familyMembers);
 
         // อัปเดต identity bar (ถ้ามีฟังก์ชัน)
         if (typeof updateIdentityBar === 'function') updateIdentityBar();
-
-        // อัปเดตแผนผังถ้ากำลังแสดงอยู่
-        const treeView = document.getElementById('tree-view');
-        if (treeView && treeView.style.display === 'block') {
-            renderFamilyTree(window._familyMembers);
-        }
 
     } catch (err) {
         console.error('ข้อผิดพลาด:', err.message);
@@ -145,11 +139,11 @@ async function saveRelationship(fromId, toId, relationType) {
         await ensureSignedIn();
 
         if (relationType === 'พ่อ' || relationType === 'แม่') {
-            // ตั้งค่า parent_id ของสมาชิกปัจจุบัน
+            // ลบความสัมพันธ์เดิม (ถ้ามี) แล้วบันทึกในตาราง relationships
+            await _supabase.from('relationships').delete().match({ from_id: fromId, relation: relationType });
             const { error } = await _supabase
-                .from('profiles')
-                .update({ parent_id: toId })
-                .eq('id', fromId);
+                .from('relationships')
+                .insert([{ from_id: fromId, to_id: toId, relation: relationType }]);
             if (error) throw error;
         } else if (relationType === 'ลูก') {
             // ตั้งค่า parent_id ของสมาชิกเป้าหมาย
@@ -210,6 +204,19 @@ function renderMemberCards(members) {
 
     const identityId = window._identityId || null;
 
+    // สร้าง lookup map สำหรับ relationships เพื่อประสิทธิภาพในการแสดงผล
+    const relsByMember = {};
+    (window._relationships || []).forEach(r => {
+        if (!relsByMember[r.from_id]) relsByMember[r.from_id] = [];
+        if (!relsByMember[r.to_id])   relsByMember[r.to_id]   = [];
+        relsByMember[r.from_id].push(r);
+        relsByMember[r.to_id].push(r);
+    });
+
+    // สร้าง lookup map สำหรับสมาชิก
+    const memberById = {};
+    members.forEach(m => { memberById[m.id] = m; });
+
     containerEl.innerHTML = members.map(member => {
         const displayName = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
         const searchName  = `${member.first_name} ${member.last_name || ''}`.trim();
@@ -228,10 +235,28 @@ function renderMemberCards(members) {
         // อายุ (แสดงเฉพาะกรณีมีชีวิตและมีวันเกิด)
         const age = (isAlive && member.birth_date) ? calcAge(member.birth_date) : null;
 
-        // ผู้ปกครอง
+        // พ่อและแม่ (จากตาราง relationships)
         let parentText = '';
-        if (member.parent_id) {
-            const parent = window._familyMembers.find(m => m.id === member.parent_id);
+        const memberRels = relsByMember[member.id] || [];
+        const fatherRel = memberRels.find(r => r.from_id === member.id && r.relation === 'พ่อ');
+        const motherRel = memberRels.find(r => r.from_id === member.id && r.relation === 'แม่');
+        if (fatherRel) {
+            const father = memberById[fatherRel.to_id];
+            if (father) {
+                const fName = [father.prefix, father.first_name, father.last_name].filter(Boolean).join(' ');
+                parentText += `<div><strong>พ่อ:</strong> ${escapeHtml(fName)}</div>`;
+            }
+        }
+        if (motherRel) {
+            const mother = memberById[motherRel.to_id];
+            if (mother) {
+                const mName = [mother.prefix, mother.first_name, mother.last_name].filter(Boolean).join(' ');
+                parentText += `<div><strong>แม่:</strong> ${escapeHtml(mName)}</div>`;
+            }
+        }
+        // backward compat: แสดง parent_id ถ้ายังไม่มีข้อมูลพ่อ/แม่จาก relationships
+        if (!fatherRel && !motherRel && member.parent_id) {
+            const parent = memberById[member.parent_id];
             if (parent) {
                 const parentName = [parent.prefix, parent.first_name, parent.last_name].filter(Boolean).join(' ');
                 parentText = `<div><strong>ผู้ปกครอง:</strong> ${escapeHtml(parentName)}</div>`;
@@ -239,12 +264,11 @@ function renderMemberCards(members) {
         }
 
         // แสดงความสัมพันธ์เพิ่มเติม (จากตาราง relationships)
-        const relTags = (window._relationships || [])
-            .filter(r => r.from_id === member.id || r.to_id === member.id)
+        const relTags = memberRels
             .map(r => {
                 const isFrom = r.from_id === member.id;
                 const otherId = isFrom ? r.to_id : r.from_id;
-                const other = window._familyMembers.find(m => m.id === otherId);
+                const other = memberById[otherId];
                 if (!other) return '';
                 const otherName = [other.prefix, other.first_name, other.last_name].filter(Boolean).join(' ');
                 const label = isFrom ? r.relation : _reverseRelation(r.relation);
@@ -371,6 +395,18 @@ function computeKinship(identityId, targetId) {
         if (m.parent_id && graph[m.parent_id] !== undefined) {
             graph[m.id].push({ id: m.parent_id, dir: 'up' });
             graph[m.parent_id].push({ id: m.id, dir: 'down' });
+        }
+    });
+
+    relationships.forEach(r => {
+        if ((r.relation === 'พ่อ' || r.relation === 'แม่') && graph[r.from_id] !== undefined && graph[r.to_id] !== undefined) {
+            // from_id คือลูก, to_id คือพ่อหรือแม่
+            if (!graph[r.from_id].some(e => e.id === r.to_id && e.dir === 'up')) {
+                graph[r.from_id].push({ id: r.to_id, dir: 'up' });
+            }
+            if (!graph[r.to_id].some(e => e.id === r.from_id && e.dir === 'down')) {
+                graph[r.to_id].push({ id: r.from_id, dir: 'down' });
+            }
         }
     });
 
@@ -525,182 +561,23 @@ function _pathToKinship(path, byId, identityId) {
 }
 
 /**
- * เติมตัวเลือกผู้ปกครองในฟอร์มเพิ่มสมาชิก
+ * เติมตัวเลือกพ่อและแม่ในฟอร์มเพิ่มสมาชิก
  */
-function populateParentDropdown(members) {
-    const select = document.getElementById('f-parent');
-    if (!select) return;
-    const currentValue = select.value;
-    select.innerHTML = '<option value="">— ไม่มีผู้ปกครอง (รุ่นแรก) —</option>';
-    (members || []).forEach(m => {
-        const name = [m.prefix, m.first_name, m.last_name].filter(Boolean).join(' ');
-        const opt  = document.createElement('option');
-        opt.value       = m.id;
-        opt.textContent = name;
-        if (m.id === currentValue) opt.selected = true;
-        select.appendChild(opt);
+function populateParentDropdowns(members) {
+    ['f-father', 'f-mother'].forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">— ไม่ระบุ —</option>';
+        (members || []).forEach(m => {
+            const name = [m.prefix, m.first_name, m.last_name].filter(Boolean).join(' ');
+            const opt  = document.createElement('option');
+            opt.value       = m.id;
+            opt.textContent = name;
+            if (m.id === currentValue) opt.selected = true;
+            select.appendChild(opt);
+        });
     });
-}
-
-/**
- * แสดงแผนผังครอบครัวแบบ SVG พร้อมเส้นโยงความสัมพันธ์
- */
-function renderFamilyTree(members) {
-    const container = document.getElementById('tree-view-container');
-    if (!container) return;
-
-    if (!members || members.length === 0) {
-        container.innerHTML = `
-            <div class="state-placeholder">
-                <div style="font-size:2.5rem">🌳</div>
-                <p>ยังไม่มีข้อมูลสมาชิก</p>
-            </div>`;
-        return;
-    }
-
-    const NODE_W = 150;
-    const identityId = window._identityId || null;
-    const NODE_H = identityId ? 88 : 68;
-    const H_GAP  = 24;
-    const V_GAP  = 64;
-    const PAD    = 24;
-
-    // ค่าหน่วงเวลา animation (วินาที) ต่อระดับชั้น และ offset สำหรับเส้นเชื่อม
-    const ANIM_DELAY_PER_LEVEL = 0.15;
-    const LINE_ANIM_BASE_DELAY = 0.10;
-
-    // สร้าง map และกำหนดลูก ๆ ให้แต่ละโหนด
-    const byId = {};
-    members.forEach(m => { byId[m.id] = { ...m, _children: [] }; });
-
-    const roots = [];
-    members.forEach(m => {
-        if (m.parent_id && byId[m.parent_id]) {
-            byId[m.parent_id]._children.push(byId[m.id]);
-        } else {
-            roots.push(byId[m.id]);
-        }
-    });
-
-    // เรียงลูกตามวันเกิด
-    function sortChildren(node) {
-        node._children.sort((a, b) => (a.birth_date || '').localeCompare(b.birth_date || ''));
-        node._children.forEach(sortChildren);
-    }
-    roots.forEach(sortChildren);
-
-    // คำนวณความลึก (depth) ของแต่ละโหนดเพื่อใช้กับ animation delay
-    const depths = {};
-    function setDepth(node, d) {
-        depths[node.id] = d;
-        node._children.forEach(c => setDepth(c, d + 1));
-    }
-    roots.forEach(r => setDepth(r, 0));
-
-    // คำนวณความกว้างของ subtree แต่ละโหนด
-    function calcWidth(node) {
-        if (node._children.length === 0) {
-            node._subtreeW = NODE_W;
-            return NODE_W;
-        }
-        const childW = node._children.reduce((s, c) => s + calcWidth(c), 0)
-                     + (node._children.length - 1) * H_GAP;
-        node._subtreeW = Math.max(NODE_W, childW);
-        return node._subtreeW;
-    }
-    roots.forEach(calcWidth);
-
-    // กำหนดตำแหน่ง x, y ให้แต่ละโหนด
-    const positions = {};
-    function assignPos(node, x, y) {
-        if (node._children.length === 0) {
-            positions[node.id] = { x, y };
-        } else {
-            const childTotalW = node._children.reduce((s, c) => s + c._subtreeW, 0)
-                              + (node._children.length - 1) * H_GAP;
-            positions[node.id] = { x: x + (node._subtreeW - NODE_W) / 2, y };
-            let cx = x + (node._subtreeW - childTotalW) / 2;
-            node._children.forEach(child => {
-                assignPos(child, cx, y + NODE_H + V_GAP);
-                cx += child._subtreeW + H_GAP;
-            });
-        }
-    }
-    let rx = 0;
-    roots.forEach(root => {
-        assignPos(root, rx, 0);
-        rx += root._subtreeW + H_GAP;
-    });
-
-    // ขนาด canvas
-    let maxX = 0, maxY = 0;
-    Object.values(positions).forEach(p => {
-        maxX = Math.max(maxX, p.x + NODE_W);
-        maxY = Math.max(maxY, p.y + NODE_H);
-    });
-    const canvasW = maxX + PAD * 2;
-    const canvasH = maxY + PAD * 2;
-
-    // สร้างเส้นโยง SVG (Cubic Bézier)
-    const lines = [];
-    members.forEach(m => {
-        if (!m.parent_id || !positions[m.id] || !positions[m.parent_id]) return;
-        const pp  = positions[m.parent_id];
-        const cp  = positions[m.id];
-        const x1  = pp.x + NODE_W / 2 + PAD;
-        const y1  = pp.y + NODE_H + PAD;
-        const x2  = cp.x + NODE_W / 2 + PAD;
-        const y2  = cp.y + PAD;
-        const mid = (y1 + y2) / 2;
-        const lineDelay = ((depths[m.parent_id] || 0) * ANIM_DELAY_PER_LEVEL + LINE_ANIM_BASE_DELAY).toFixed(2);
-        lines.push(
-            `<path class="tree-line" d="M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}"` +
-            ` stroke="#059669" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-opacity="0.75"` +
-            ` style="animation-delay:${lineDelay}s"/>`
-        );
-    });
-
-    // สร้างโหนดสมาชิก
-    const nodesHtml = members.map(m => {
-        if (!positions[m.id]) return '';
-        const pos         = positions[m.id];
-        const fullName    = [m.prefix, m.first_name, m.last_name].filter(Boolean).join(' ');
-        const genderIcon  = m.gender === 'ชาย' ? '👨' : (m.gender === 'หญิง' ? '👩' : '👤');
-        const accentColor = m.gender === 'ชาย' ? '#2563eb' : (m.gender === 'หญิง' ? '#db2777' : '#059669');
-        const age         = calcAge(m.birth_date);
-        const subText     = age ? `อายุ ${age} ปี` : (m.birth_date ? formatThaiDate(m.birth_date) : '');
-
-        return `<div class="tree-node" style="left:${pos.x + PAD}px;top:${pos.y + PAD}px;border-left-color:${accentColor};animation-delay:${((depths[m.id] || 0) * ANIM_DELAY_PER_LEVEL).toFixed(2)}s">
-            <div class="tree-node-name">${genderIcon} ${escapeHtml(fullName)}</div>
-            ${m.nickname ? `<div class="tree-node-nickname">(${escapeHtml(m.nickname)})</div>` : ''}
-            ${subText ? `<div class="tree-node-sub">${escapeHtml(subText)}</div>` : ''}
-            ${(() => {
-                if (!identityId) return '';
-                if (identityId === m.id) return '<div class="tree-node-kinship tree-kinship-self">👤 ตัวเอง</div>';
-                const k = computeKinship(identityId, m.id);
-                return k ? `<div class="tree-node-kinship">${escapeHtml(k)}</div>` : '';
-            })()}
-        </div>`;
-    }).join('');
-
-    const hasRelations = members.some(m => m.parent_id && positions[m.parent_id]);
-
-    container.innerHTML = `
-        <div class="tree-scroll-wrap">
-            <div class="tree-canvas" style="width:${canvasW}px;height:${canvasH}px;">
-                <svg style="position:absolute;top:0;left:0;" width="${canvasW}" height="${canvasH}">
-                    <defs>
-                        <filter id="line-glow">
-                            <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#059669" flood-opacity="0.2"/>
-                        </filter>
-                    </defs>
-                    <g filter="url(#line-glow)">${lines.join('')}</g>
-                </svg>
-                ${nodesHtml}
-            </div>
-        </div>
-        ${!hasRelations ? `<div class="tree-hint">💡 ระบุ "ผู้ปกครอง" ตอนเพิ่มสมาชิกเพื่อสร้างเส้นเชื่อมความสัมพันธ์</div>` : ''}
-    `;
 }
 
 /**
