@@ -222,9 +222,11 @@ function renderMemberCards(members) {
     members.forEach(m => { memberById[m.id] = m; });
 
     containerEl.innerHTML = members.map(member => {
-        const displayName = (member.first_name || '') + (member.nickname ? ` (${member.nickname})` : '');
+        const fullName    = [member.first_name, member.last_name].filter(Boolean).join(' ');
+        const displayName = fullName + (member.nickname ? ` (${member.nickname})` : '');
         const searchName  = `${member.first_name} ${member.last_name || ''}`.trim();
         const genderIcon  = member.gender === 'ชาย' ? '♂' : (member.gender === 'หญิง' ? '♀' : '👤');
+        const circleIcon  = member.gender === 'ชาย' ? '👨' : (member.gender === 'หญิง' ? '👩' : '👤');
         const accentColor = member.gender === 'ชาย' ? '#2563eb' : (member.gender === 'หญิง' ? '#db2777' : '#059669');
 
         // ชื่อเดิม-นามสกุลเดิม
@@ -290,23 +292,19 @@ function renderMemberCards(members) {
             kinshipHtml = '<div class="kinship-label kinship-self">👤 ตัวเอง</div>';
         }
 
-        // รูปภาพ
+        // รูปภาพ (แสดงด้านขวา)
         const photoHtml = member.photo_url
-            ? `<img src="${escapeHtml(member.photo_url)}" class="member-photo" alt="รูป" onerror="this.style.display='none'">`
-            : `<div class="member-photo-placeholder">${genderIcon}</div>`;
+            ? `<img src="${escapeHtml(member.photo_url)}" class="member-photo-right" alt="รูป" onerror="this.style.display='none'">`
+            : `<div class="member-photo-placeholder-right">${circleIcon}</div>`;
 
         return `
             <div class="member-card${isAlive ? '' : ' deceased'}" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(searchName.toLowerCase())}" style="border-left-color:${accentColor};">
                 <div class="member-card-header">
-                    ${photoHtml}
                     <div class="member-card-title">
                         <h3 class="member-card-name">${genderIcon} ${escapeHtml(displayName)}</h3>
                         ${kinshipHtml}
                     </div>
-                    <div class="card-btn-group">
-                        <button class="btn-card-edit" data-member-id="${escapeHtml(member.id)}" title="แก้ไขสมาชิก">✏️ แก้ไข</button>
-                        <button class="btn-card-delete" data-member-id="${escapeHtml(member.id)}" title="ลบสมาชิก">🗑️ ลบ</button>
-                    </div>
+                    ${photoHtml}
                 </div>
                 <div class="member-card-info">
                     ${formerName ? `<div><strong>ชื่อเดิม:</strong> ${escapeHtml(formerName)}</div>` : ''}
@@ -325,6 +323,10 @@ function renderMemberCards(members) {
                 </div>
                 <div class="member-card-footer">
                     <span class="card-hint">🔗 คลิกเพื่อจัดการความสัมพันธ์</span>
+                    <div class="card-btn-group">
+                        <button class="btn-card-edit" data-member-id="${escapeHtml(member.id)}" title="แก้ไขสมาชิก">✏️ แก้ไข</button>
+                        <button class="btn-card-delete" data-member-id="${escapeHtml(member.id)}" title="ลบสมาชิก">🗑️ ลบ</button>
+                    </div>
                 </div>
             </div>`;
     }).join('');
@@ -356,11 +358,12 @@ async function uploadMemberPhoto(file) {
 
     const { error } = await _supabase.storage
         .from('avatars')
-        .upload(fileName, file, { contentType: file.type, upsert: false });
+        .upload(fileName, file, { contentType: file.type, upsert: true, cacheControl: '3600' });
 
     if (error) throw error;
 
     const { data: urlData } = _supabase.storage.from('avatars').getPublicUrl(fileName);
+    if (!urlData || !urlData.publicUrl) throw new Error('ไม่สามารถรับ URL รูปภาพได้ (ตรวจสอบการตั้งค่า bucket "avatars" ใน Supabase Storage)');
     return urlData.publicUrl;
 }
 
@@ -697,7 +700,7 @@ function renderFamilyTree() {
     });
 
     // ─── D3 tree layout ───
-    const NODE_W = 150, NODE_H = 66;
+    const NODE_W = 165, NODE_H = 80;
     const H_SEP  = 20,  V_SEP  = 56;
     // Separation: 1 = พี่น้อง (siblings), 1.4 = ลูกพี่ลูกน้อง (cousins / different parent)
     const SIBLING_SEP = 1, COUSIN_SEP = 1.4;
@@ -837,20 +840,24 @@ function renderFamilyTree() {
                 .attr('stroke', strokeColor).attr('stroke-width', 2)
                 .style('filter', 'drop-shadow(0 2px 6px rgba(0,0,0,0.09))');
 
-            // Gender icon (top-left)
-            const gIcon = isMale ? '♂' : (isFemale ? '♀' : '👤');
+            // Line 1: gender emoji + first_name - last_name
+            const gIcon    = isMale ? '👨' : (isFemale ? '👩' : '👤');
+            const fullName = [member.first_name, member.last_name].filter(Boolean).join(' - ');
+            const line1    = gIcon + ' ' + fullName;
             ng.append('text')
-                .attr('x', 9).attr('y', 21)
-                .attr('font-size', '14px')
-                .text(gIcon);
-
-            // First name (nickname)
-            const displayName = (member.first_name || '') + (member.nickname ? ` (${member.nickname})` : '');
-            ng.append('text')
-                .attr('x', NODE_W / 2).attr('y', 22)
+                .attr('x', NODE_W / 2).attr('y', 26)
                 .attr('text-anchor', 'middle')
-                .attr('font-size', '11px').attr('font-weight', '700').attr('fill', textColor)
-                .text(displayName.length > 17 ? displayName.slice(0, 15) + '…' : displayName);
+                .attr('font-size', '12px').attr('font-weight', '700').attr('fill', textColor)
+                .text(line1.length > 20 ? line1.slice(0, 18) + '…' : line1);
+
+            // Line 2: (nickname)
+            if (member.nickname) {
+                ng.append('text')
+                    .attr('x', NODE_W / 2).attr('y', 44)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', '11px').attr('fill', textColor)
+                    .text(`(${member.nickname})`);
+            }
 
             // ─── Kinship badge (จาก กำหนดตัวตน) ───
             if (identityId) {
