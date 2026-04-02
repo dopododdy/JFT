@@ -100,6 +100,10 @@ async function fetchFamilyMembers() {
         // อัปเดต identity bar (ถ้ามีฟังก์ชัน)
         if (typeof updateIdentityBar === 'function') updateIdentityBar();
 
+        // อัปเดตแผนผังเครือญาติถ้ากำลังแสดงอยู่
+        const panelTree = document.getElementById('tab-panel-tree');
+        if (panelTree && panelTree.style.display !== 'none') renderFamilyTree();
+
     } catch (err) {
         console.error('ข้อผิดพลาด:', err.message);
         statusEl.innerHTML = '<span style="color:#dc2626;font-weight:bold;">การเชื่อมต่อผิดพลาด ❌</span>';
@@ -599,3 +603,296 @@ async function ensureSignedIn() {
 
 // โหลดข้อมูลเมื่อเปิดหน้าเว็บ
 document.addEventListener('DOMContentLoaded', fetchFamilyMembers);
+
+/**
+ * แสดงแผนผังเครือญาติด้วย D3.js
+ * รองรับ: parent-child, spouse, kinship labels จาก กำหนดตัวตน
+ */
+function renderFamilyTree() {
+    const container = document.getElementById('tree-container');
+    if (!container || !window.d3) return;
+
+    // ล้าง SVG เดิม (คงปุ่มควบคุมและ legend ไว้)
+    const existingSvg = container.querySelector('svg');
+    if (existingSvg) existingSvg.remove();
+
+    const members       = window._familyMembers  || [];
+    const relationships = window._relationships  || [];
+    const identityId    = window._identityId     || null;
+
+    if (members.length === 0) {
+        const ph = document.createElement('div');
+        ph.className = 'state-placeholder';
+        ph.style.cssText = 'border:none;border-radius:0;';
+        ph.innerHTML = '<div style="font-size:2.5rem;">🌱</div><p>ยังไม่มีข้อมูลสมาชิกในตระกูล</p><small>กดปุ่ม <strong>เพิ่มสมาชิก</strong> เพื่อเริ่มต้น</small>';
+        container.appendChild(ph);
+        return;
+    }
+
+    const d3 = window.d3;
+
+    // ─── สร้าง lookup ───
+    const byId = {};
+    members.forEach(m => { byId[m.id] = m; });
+
+    const fatherOf = {}, motherOf = {};
+    const spousePairSet = new Set();
+    const spousePairs   = [];
+
+    relationships.forEach(r => {
+        if (r.relation === 'พ่อ') {
+            fatherOf[r.from_id] = r.to_id;
+        } else if (r.relation === 'แม่') {
+            motherOf[r.from_id] = r.to_id;
+        } else if (['สามี/ภรรยา', 'สามี', 'ภรรยา'].includes(r.relation)) {
+            const key = [r.from_id, r.to_id].sort().join('|');
+            if (!spousePairSet.has(key) && byId[r.from_id] && byId[r.to_id]) {
+                spousePairSet.add(key);
+                spousePairs.push({ a: r.from_id, b: r.to_id });
+            }
+        }
+    });
+
+    // ─── สร้าง tree structure: พ่อ > แม่ > parent_id ───
+    const primaryParentOf = {};
+    const childrenOf = {};
+    members.forEach(m => { childrenOf[m.id] = []; });
+
+    members.forEach(m => {
+        const p = fatherOf[m.id]
+            || motherOf[m.id]
+            || (m.parent_id && byId[m.parent_id] ? m.parent_id : null);
+        if (p) primaryParentOf[m.id] = p;
+    });
+    members.forEach(m => {
+        if (primaryParentOf[m.id]) childrenOf[primaryParentOf[m.id]].push(m.id);
+    });
+
+    // ─── หา root nodes ───
+    let roots = members.filter(m => !primaryParentOf[m.id]);
+    if (!roots.length) roots = [members[0]];
+
+    // ─── build hierarchy (ป้องกัน cycle) ───
+    const visitedBuild = new Set();
+    function buildNode(id) {
+        if (visitedBuild.has(id)) return null;
+        visitedBuild.add(id);
+        return {
+            id,
+            member: byId[id],
+            children: (childrenOf[id] || []).map(buildNode).filter(Boolean)
+        };
+    }
+
+    const treeData = roots.length === 1
+        ? buildNode(roots[0].id)
+        : { id: '__root__', member: null, children: roots.map(r => buildNode(r.id)).filter(Boolean) };
+
+    // เพิ่มสมาชิกที่ยังไม่ได้เชื่อมโยง (disconnected)
+    members.forEach(m => {
+        if (!visitedBuild.has(m.id) && treeData) {
+            treeData.children = treeData.children || [];
+            const node = buildNode(m.id);
+            if (node) treeData.children.push(node);
+        }
+    });
+
+    // ─── D3 tree layout ───
+    const NODE_W = 150, NODE_H = 66;
+    const H_SEP  = 20,  V_SEP  = 56;
+    // Separation: 1 = พี่น้อง (siblings), 1.4 = ลูกพี่ลูกน้อง (cousins / different parent)
+    const SIBLING_SEP = 1, COUSIN_SEP = 1.4;
+
+    const root = d3.hierarchy(treeData);
+    d3.tree()
+        .nodeSize([NODE_W + H_SEP, NODE_H + V_SEP])
+        .separation((a, b) => a.parent === b.parent ? SIBLING_SEP : COUSIN_SEP)(root);
+
+    // คำนวณ bounds
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    root.each(d => {
+        x0 = Math.min(x0, d.x - NODE_W / 2);
+        x1 = Math.max(x1, d.x + NODE_W / 2);
+        y0 = Math.min(y0, d.y - NODE_H / 2);
+        y1 = Math.max(y1, d.y + NODE_H / 2);
+    });
+
+    const PAD  = 24;
+    const svgW = x1 - x0 + PAD * 2;
+    const svgH = y1 - y0 + PAD * 2;
+    const ox   = -x0 + PAD;   // offset ให้ x อยู่ใน viewport
+    const oy   = -y0 + PAD;
+
+    // ─── สร้าง SVG ───
+    const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgEl.style.width  = '100%';
+    svgEl.style.height = Math.min(svgH, 600) + 'px';
+    container.insertBefore(svgEl, container.firstChild); // แทรกก่อนปุ่มควบคุม
+
+    const svg = d3.select(svgEl);
+    const g   = svg.append('g');
+
+    // ─── Zoom / Pan ───
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 5])
+        .on('zoom', ev => g.attr('transform', ev.transform));
+
+    svg.call(zoom);
+
+    // ตั้ง initial view ให้พอดีกับความกว้างของ container
+    const CONTAINER_H_PADDING = 32; // ระยะห่างซ้าย-ขวาของ container
+    const cw     = container.clientWidth || 800;
+    const scale  = Math.min(1, (cw - CONTAINER_H_PADDING) / svgW);
+    const initTx = (cw - svgW * scale) / 2;
+    zoom.transform(svg, d3.zoomIdentity.translate(initTx, 16).scale(scale));
+
+    // เก็บ reference สำหรับปุ่ม zoom controls (ใช้ใน index.html)
+    window._treeSvg  = svg;
+    window._treeZoom = zoom;
+
+    // ─── ตำแหน่ง node แต่ละตัว (เทียบกับ offset) ───
+    const posById = {};
+    root.each(d => { posById[d.data.id] = { x: d.x + ox, y: d.y + oy }; });
+
+    // ─── Edges: parent → child ───
+    root.links()
+        .filter(l => l.source.data.id !== '__root__' && l.target.data.id !== '__root__')
+        .forEach(({ source: s, target: t }) => {
+            const sx = s.x + ox, sy = s.y + oy;
+            const tx = t.x + ox, ty = t.y + oy;
+            const cy = (sy + ty) / 2;
+            g.append('path')
+                .attr('d', `M${sx},${sy + NODE_H / 2} C${sx},${cy} ${tx},${cy} ${tx},${ty - NODE_H / 2}`)
+                .attr('fill', 'none')
+                .attr('stroke', '#86efac')
+                .attr('stroke-width', 2);
+        });
+
+    // ─── Edges: พ่อ/แม่ที่สอง (เส้นประ) ───
+    members.forEach(m => {
+        const p1 = primaryParentOf[m.id];
+        const p2 = (fatherOf[m.id] && fatherOf[m.id] !== p1) ? fatherOf[m.id]
+                 : (motherOf[m.id] && motherOf[m.id] !== p1) ? motherOf[m.id] : null;
+        if (!p2) return;
+        const posM = posById[m.id], posP = posById[p2];
+        if (!posM || !posP) return;
+        const cy = (posM.y + posP.y) / 2;
+        g.append('path')
+            .attr('d', `M${posM.x},${posM.y - NODE_H / 2} C${posM.x},${cy} ${posP.x},${cy} ${posP.x},${posP.y + NODE_H / 2}`)
+            .attr('fill', 'none')
+            .attr('stroke', '#fbbf24')
+            .attr('stroke-width', 1.5)
+            .attr('stroke-dasharray', '5,3');
+    });
+
+    // ─── Edges: คู่สมรส (เส้นประ) ───
+    spousePairs.forEach(({ a, b }) => {
+        const posA = posById[a], posB = posById[b];
+        if (!posA || !posB) return;
+        const edgeAx = posA.x + (posA.x <= posB.x ?  NODE_W / 2 : -NODE_W / 2);
+        const edgeBx = posB.x + (posA.x <= posB.x ? -NODE_W / 2 :  NODE_W / 2);
+        g.append('line')
+            .attr('x1', edgeAx).attr('y1', posA.y)
+            .attr('x2', edgeBx).attr('y2', posB.y)
+            .attr('stroke', '#fbbf24')
+            .attr('stroke-width', 2)
+            .attr('stroke-dasharray', '5,3');
+        g.append('text')
+            .attr('x', (edgeAx + edgeBx) / 2)
+            .attr('y', (posA.y + posB.y) / 2 + 5)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '13px')
+            .text('💑');
+    });
+
+    // ─── Nodes ───
+    root.descendants()
+        .filter(d => d.data.id !== '__root__')
+        .forEach(d => {
+            const member = d.data.member;
+            const pos    = posById[d.data.id];
+            if (!pos || !member) return;
+
+            const isAlive  = member.is_alive !== false;
+            const isMale   = member.gender === 'ชาย';
+            const isFemale = member.gender === 'หญิง';
+
+            const strokeColor = isMale   ? '#2563eb'
+                              : isFemale ? '#db2777'
+                              : '#059669';
+            const fillColor   = isAlive ? '#ffffff' : '#f1f5f9';
+            const textColor   = isAlive ? '#1e293b' : '#6b7280';
+
+            const ng = g.append('g')
+                .attr('class', 'tree-node')
+                .attr('transform', `translate(${pos.x - NODE_W / 2},${pos.y - NODE_H / 2})`)
+                .style('cursor', 'pointer')
+                .on('click', () => {
+                    if (typeof openRelationModal === 'function') openRelationModal(d.data.id);
+                });
+
+            // Card background
+            ng.append('rect')
+                .attr('width', NODE_W).attr('height', NODE_H).attr('rx', 10)
+                .attr('fill', fillColor)
+                .attr('stroke', strokeColor).attr('stroke-width', 2)
+                .style('filter', 'drop-shadow(0 2px 6px rgba(0,0,0,0.09))');
+
+            // Gender/status icon (top-left)
+            const gIcon = !isAlive ? '⚫'
+                        : (isMale   ? '👨'
+                        : (isFemale ? '👩' : '👤'));
+            ng.append('text')
+                .attr('x', 9).attr('y', 21)
+                .attr('font-size', '14px')
+                .text(gIcon);
+
+            // Full name
+            const displayName = [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' ');
+            ng.append('text')
+                .attr('x', NODE_W / 2).attr('y', 22)
+                .attr('text-anchor', 'middle')
+                .attr('font-size', '11px').attr('font-weight', '700').attr('fill', textColor)
+                .text(displayName.length > 17 ? displayName.slice(0, 15) + '…' : displayName);
+
+            // Nickname
+            if (member.nickname) {
+                ng.append('text')
+                    .attr('x', NODE_W / 2).attr('y', 37)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', '10px').attr('fill', '#94a3b8')
+                    .text('(' + member.nickname + ')');
+            }
+
+            // ─── Kinship badge (จาก กำหนดตัวตน) ───
+            if (identityId) {
+                const isSelf  = identityId === member.id;
+                const kinship = isSelf
+                    ? 'ตัวเอง'
+                    : (typeof computeKinship === 'function'
+                        ? (computeKinship(identityId, member.id) || '')
+                        : '');
+
+                if (kinship) {
+                    const BADGE_CHAR_W   = 7;  // ความกว้างโดยประมาณต่อตัวอักษร (px)
+                    const BADGE_PADDING  = 14; // padding ซ้าย-ขวารวม (px)
+                    const BADGE_MIN_W    = 44; // ความกว้างขั้นต่ำ (px)
+                    const bw  = Math.max(kinship.length * BADGE_CHAR_W + BADGE_PADDING, BADGE_MIN_W);
+                    const bx  = (NODE_W - bw) / 2;
+                    const by  = NODE_H - 17;
+                    ng.append('rect')
+                        .attr('x', bx).attr('y', by)
+                        .attr('width', bw).attr('height', 14).attr('rx', 7)
+                        .attr('fill',   isSelf ? '#d1fae5' : '#fef3c7')
+                        .attr('stroke', isSelf ? '#6ee7b7' : '#fde68a')
+                        .attr('stroke-width', 1);
+                    ng.append('text')
+                        .attr('x', NODE_W / 2).attr('y', by + 10)
+                        .attr('text-anchor', 'middle')
+                        .attr('font-size', '9px').attr('font-weight', '700')
+                        .attr('fill', isSelf ? '#065f46' : '#92400e')
+                        .text(kinship);
+                }
+            }
+        });
+}
