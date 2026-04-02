@@ -1586,7 +1586,7 @@
             }
             // Click card to open relation modal
             const card = e.target.closest('.member-card');
-            if (card && !e.target.closest('button') && document.getElementById('members-container').contains(card)) {
+            if (card && document.getElementById('members-container').contains(card)) {
                 openRelationModal(card.dataset.id, e);
                 return;
             }

@@ -285,6 +285,7 @@ function renderMemberCards(members) {
 
     // การ์ดสมาชิก (ใช้สำหรับทั้งด้านหน้าและด้านหลังของ flip card)
     function _memberCardHtml(member, opts) {
+        opts = opts || {};
         const alive   = member.is_alive !== false;
         const accent  = member.gender === 'ชาย' ? '#2563eb' : member.gender === 'หญิง' ? '#db2777' : '#059669';
         const bg      = alive
