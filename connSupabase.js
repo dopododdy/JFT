@@ -640,8 +640,9 @@ async function ensureSignedIn() {
 document.addEventListener('DOMContentLoaded', fetchFamilyMembers);
 
 /**
- * แสดงแผนผังเครือญาติด้วย D3.js
- * รองรับ: parent-child, spouse, kinship labels จาก กำหนดตัวตน
+ * แสดงแผนผังเครือญาติแบบ Pedigree View ด้วย D3.js
+ * Root (บุคคลที่เลือกจาก "กำหนดตัวตน") อยู่ซ้ายสุด บรรพบุรุษแผ่ไปทางขวา
+ * รองรับ Zoom / Pan บน Mobile และเส้นเชื่อมแบบหักมุม (Orthogonal Elbow Lines)
  */
 function renderFamilyTree() {
     const container = document.getElementById('tree-container');
@@ -651,7 +652,7 @@ function renderFamilyTree() {
     const existingSvg = container.querySelector('svg');
     if (existingSvg) existingSvg.remove();
 
-    let members         = window._familyMembers  || [];
+    const members       = window._familyMembers  || [];
     const relationships = window._relationships  || [];
     const identityId    = window._identityId     || null;
 
@@ -666,450 +667,294 @@ function renderFamilyTree() {
 
     const d3 = window.d3;
 
-    // ─── ซ่อนคู่สมรสที่ไม่มีเส้นสายพ่อ/แม่ เหนือขึ้นไป ───
-    if (window._treeHideMarriedIn) {
-        const allIds = new Set(members.map(m => m.id));
-        const hasParentInTree = new Set();
-        const hasChildInTree  = new Set();
-        const isSpouseInTree  = new Set();
-        relationships.forEach(r => {
-            if (r.relation === 'พ่อ' && allIds.has(r.to_id)) {
-                hasParentInTree.add(r.from_id);
-                hasChildInTree.add(r.to_id);
-            }
-            if (r.relation === 'แม่' && allIds.has(r.to_id)) {
-                hasParentInTree.add(r.from_id);
-                hasChildInTree.add(r.to_id);
-            }
-            if (['สามี/ภรรยา', 'สามี', 'ภรรยา'].includes(r.relation)) {
-                if (allIds.has(r.from_id)) isSpouseInTree.add(r.from_id);
-                if (allIds.has(r.to_id))   isSpouseInTree.add(r.to_id);
-            }
-        });
-        members.forEach(m => {
-            if (m.parent_id && allIds.has(m.parent_id)) {
-                hasParentInTree.add(m.id);
-                hasChildInTree.add(m.parent_id);
-            }
-        });
-        // ซ่อนถ้า: เป็นคู่สมรส AND ไม่มีพ่อ/แม่ AND ไม่มีลูกในระบบ
-        members = members.filter(m =>
-            !isSpouseInTree.has(m.id) || hasParentInTree.has(m.id) || hasChildInTree.has(m.id)
-        );
-    }
-
-    // ─── สร้าง lookup ───
+    // ─── สร้าง lookup map ───
     const byId = {};
     members.forEach(m => { byId[m.id] = m; });
 
+    // fatherOf[childId] = fatherId, motherOf[childId] = motherId
+    // (from_id = ลูก, to_id = พ่อหรือแม่)
     const fatherOf = {}, motherOf = {};
-    const spousePairSet = new Set();
-    const spousePairs   = [];
-
     relationships.forEach(r => {
-        if (r.relation === 'พ่อ') {
-            fatherOf[r.from_id] = r.to_id;
-        } else if (r.relation === 'แม่') {
-            motherOf[r.from_id] = r.to_id;
-        } else if (['สามี/ภรรยา', 'สามี', 'ภรรยา'].includes(r.relation)) {
-            const key = [r.from_id, r.to_id].sort().join('|');
-            if (!spousePairSet.has(key) && byId[r.from_id] && byId[r.to_id]) {
-                spousePairSet.add(key);
-                spousePairs.push({ a: r.from_id, b: r.to_id });
-            }
+        if (!byId[r.from_id] || !byId[r.to_id]) return;
+        if (r.relation === 'พ่อ')      fatherOf[r.from_id] = r.to_id;
+        else if (r.relation === 'แม่') motherOf[r.from_id] = r.to_id;
+    });
+
+    // ─── กำหนด Root ───
+    // (members.length === 0 ถูกตรวจสอบแล้วด้านบน จึงเข้าถึง members[0] ได้อย่างปลอดภัย)
+    const rootId = (identityId && byId[identityId]) ? identityId : members[0].id;
+
+    // ─── สร้าง Pedigree Tree แบบ Recursive (บรรพบุรุษเท่านั้น) ───
+    // MAX_ANCESTOR_DEPTH: depth 0 = Root, depth N = รุ่นบรรพบุรุษที่ N (ไม่เกิน 5 รุ่น)
+    const MAX_ANCESTOR_DEPTH = 5;
+    const nodeMap   = new Map(); // "id@depth" → node
+
+    function buildAncestor(personId, depth) {
+        if (!personId || !byId[personId] || depth > MAX_ANCESTOR_DEPTH) return null;
+        const key = `${personId}@${depth}`;
+        if (nodeMap.has(key)) return nodeMap.get(key);
+
+        const node = { id: personId, depth, slot: 0, father: null, mother: null };
+        nodeMap.set(key, node);
+        node.father = buildAncestor(fatherOf[personId] || null, depth + 1);
+        node.mother = buildAncestor(motherOf[personId] || null, depth + 1);
+        return node;
+    }
+
+    const rootNode = buildAncestor(rootId, 0);
+
+    // ─── กำหนด slot (ตำแหน่ง Y) ด้วย DFS ───
+    // ใบสุดท้าย (บรรพบุรุษที่ไม่มีข้อมูลพ่อแม่) จะได้ slot ต่อเนื่อง
+    // โหนดพ่อแม่จะได้ slot = ค่าเฉลี่ยของลูก
+    let leafSlot = 0;
+
+    function assignSlots(node) {
+        if (!node) return;
+        const hasFather = !!node.father;
+        const hasMother = !!node.mother;
+        if (!hasFather && !hasMother) {
+            node.slot = leafSlot++;
+        } else {
+            assignSlots(node.father);
+            assignSlots(node.mother);
+            const slots = [];
+            if (hasFather) slots.push(node.father.slot);
+            if (hasMother) slots.push(node.mother.slot);
+            node.slot = slots.reduce((s, v) => s + v, 0) / slots.length;
         }
-    });
-
-    // ─── คำนวณ generation ของสมาชิกแต่ละคน ───
-    // generation 0 = บรรพบุรุษสูงสุด (ไม่มีพ่อ/แม่ในระบบ), generation N = ลูกหลานรุ่นที่ N
-    const genOf = {};
-    const memberIdSet = new Set(members.map(m => m.id));
-    members.forEach(m => {
-        const hasFa = fatherOf[m.id] && memberIdSet.has(fatherOf[m.id]);
-        const hasMo = motherOf[m.id] && memberIdSet.has(motherOf[m.id]);
-        const hasLeg = m.parent_id && memberIdSet.has(m.parent_id);
-        if (!hasFa && !hasMo && !hasLeg) genOf[m.id] = 0;
-    });
-    let genChanged = true;
-    while (genChanged) {
-        genChanged = false;
-        members.forEach(m => {
-            let maxP = -1;
-            if (fatherOf[m.id] && genOf[fatherOf[m.id]] !== undefined) maxP = Math.max(maxP, genOf[fatherOf[m.id]]);
-            if (motherOf[m.id] && genOf[motherOf[m.id]] !== undefined) maxP = Math.max(maxP, genOf[motherOf[m.id]]);
-            if (m.parent_id   && genOf[m.parent_id]    !== undefined) maxP = Math.max(maxP, genOf[m.parent_id]);
-            if (maxP >= 0) {
-                const g = maxP + 1;
-                if (genOf[m.id] !== g) { genOf[m.id] = g; genChanged = true; }
-            }
-        });
-    }
-    // คู่สมรสที่ยังไม่มี generation → รับ generation ของคู่สมรส
-    let spouseGenChanged = true;
-    while (spouseGenChanged) {
-        spouseGenChanged = false;
-        spousePairs.forEach(({ a, b }) => {
-            if (genOf[a] === undefined && genOf[b] !== undefined) { genOf[a] = genOf[b]; spouseGenChanged = true; }
-            if (genOf[b] === undefined && genOf[a] !== undefined) { genOf[b] = genOf[a]; spouseGenChanged = true; }
-        });
-    }
-    members.forEach(m => { if (genOf[m.id] === undefined) genOf[m.id] = 0; });
-
-    // ─── สร้าง tree structure: พ่อ > แม่ > parent_id ───
-    const primaryParentOf = {};
-    const childrenOf = {};
-    members.forEach(m => { childrenOf[m.id] = []; });
-
-    members.forEach(m => {
-        const p = fatherOf[m.id]
-            || motherOf[m.id]
-            || (m.parent_id && byId[m.parent_id] ? m.parent_id : null);
-        if (p) primaryParentOf[m.id] = p;
-    });
-    members.forEach(m => {
-        if (primaryParentOf[m.id]) childrenOf[primaryParentOf[m.id]].push(m.id);
-    });
-
-    // ─── หา root nodes ───
-    let roots = members.filter(m => !primaryParentOf[m.id]);
-    if (!roots.length) roots = [members[0]];
-
-    // ─── build hierarchy (ป้องกัน cycle) ───
-    const visitedBuild = new Set();
-    function buildNode(id) {
-        if (visitedBuild.has(id)) return null;
-        visitedBuild.add(id);
-        return {
-            id,
-            member: byId[id],
-            children: (childrenOf[id] || []).map(buildNode).filter(Boolean)
-        };
     }
 
-    const treeData = roots.length === 1
-        ? buildNode(roots[0].id)
-        : { id: '__root__', member: null, children: roots.map(r => buildNode(r.id)).filter(Boolean) };
+    assignSlots(rootNode);
 
-    // เพิ่มสมาชิกที่ยังไม่ได้เชื่อมโยง (disconnected)
-    members.forEach(m => {
-        if (!visitedBuild.has(m.id) && treeData) {
-            treeData.children = treeData.children || [];
-            const node = buildNode(m.id);
-            if (node) treeData.children.push(node);
-        }
+    // ─── Layout constants ───
+    const NODE_W  = 145, NODE_H  = 90;
+    const H_GAP   = 36,  V_GAP   = 18;
+    const GEN_W   = NODE_W + H_GAP;   // ระยะห่างแต่ละ generation แนวนอน
+    const SLOT_H  = NODE_H + V_GAP;   // ระยะห่างแต่ละ slot แนวตั้ง
+    const PAD     = 20;
+    const PHOTO_R = 15, PHOTO_CX = NODE_W / 2, PHOTO_CY = 20;
+    const CLIP_ID = 'clip-ped-avatar';
+    // Badge sizing
+    const BADGE_CHAR_W = 7, BADGE_PAD = 12, BADGE_MIN_W = 40;
+    // Shadow opacity
+    const SHADOW_ROOT = 0.15, SHADOW_DEFAULT = 0.09;
+
+    // ─── แปลง slot / depth → พิกัด pixel ───
+    const slotToY  = s => PAD + s * SLOT_H;
+    const depthToX = d => PAD + d * GEN_W;
+
+    function assignPositions(node) {
+        if (!node) return;
+        node.x = depthToX(node.depth);
+        node.y = slotToY(node.slot);
+        assignPositions(node.father);
+        assignPositions(node.mother);
+    }
+
+    assignPositions(rootNode);
+
+    // คำนวณขนาด SVG จากโหนดทั้งหมด
+    let maxX = 0, maxY = 0;
+    nodeMap.forEach(n => {
+        maxX = Math.max(maxX, n.x + NODE_W);
+        maxY = Math.max(maxY, n.y + NODE_H);
     });
-
-    // ─── D3 tree layout ───
-    const NODE_W = 165, NODE_H = 110;
-    const H_SEP  = 20,  V_SEP  = 56;
-    // ─── Photo avatar constants ───
-    const PHOTO_R  = 20;                  // รัศมีรูปโปรไฟล์ (px)
-    const PHOTO_CX = NODE_W / 2;         // กึ่งกลาง x ของรูป
-    const PHOTO_CY = 26;                 // กึ่งกลาง y ของรูป (จากบนสุดของ node)
-    // Separation: 1 = พี่น้อง (siblings), 1.4 = ลูกพี่ลูกน้อง (cousins / different parent)
-    const SIBLING_SEP = 1, COUSIN_SEP = 1.4;
-
-    const root = d3.hierarchy(treeData);
-    d3.tree()
-        .nodeSize([NODE_W + H_SEP, NODE_H + V_SEP])
-        .separation((a, b) => a.parent === b.parent ? SIBLING_SEP : COUSIN_SEP)(root);
-
-    // คำนวณ bounds แนวนอน (จาก D3) และแนวตั้ง (จาก generation)
-    let x0 = Infinity, x1 = -Infinity;
-    root.each(d => {
-        x0 = Math.min(x0, d.x - NODE_W / 2);
-        x1 = Math.max(x1, d.x + NODE_W / 2);
-    });
-
-    const maxGen  = members.reduce((mx, m) => Math.max(mx, genOf[m.id] || 0), 0);
-    const LEVEL_H = NODE_H + V_SEP;
-    const PAD     = 24;
-    const svgW    = x1 - x0 + PAD * 2;
-    const svgH    = (maxGen + 1) * LEVEL_H + PAD * 2;
-    const ox      = -x0 + PAD;   // offset ให้ x อยู่ใน viewport
+    const svgW = maxX + PAD;
+    const svgH = maxY + PAD;
 
     // ─── สร้าง SVG ───
     const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svgEl.style.width  = '100%';
     svgEl.style.height = Math.min(svgH, 600) + 'px';
-    container.insertBefore(svgEl, container.firstChild); // แทรกก่อนปุ่มควบคุม
+    container.insertBefore(svgEl, container.firstChild);
 
     const svg  = d3.select(svgEl);
     const defs = svg.append('defs');
-    // clipPath เดียวสำหรับทุก node (พิกัดอยู่ใน local space ของแต่ละ node เหมือนกัน)
-    const AVATAR_CLIP_ID = 'clip-tree-avatar';
-    defs.append('clipPath').attr('id', AVATAR_CLIP_ID)
+    defs.append('clipPath').attr('id', CLIP_ID)
         .append('circle')
-        .attr('cx', NODE_W / 2).attr('cy', 26).attr('r', PHOTO_R);
-    const g    = svg.append('g');
+        .attr('cx', PHOTO_CX).attr('cy', PHOTO_CY).attr('r', PHOTO_R);
 
-    // ─── Zoom / Pan ───
+    const g = svg.append('g');
+
+    // ─── Zoom / Pan (รองรับ Mobile) ───
     const zoom = d3.zoom()
         .scaleExtent([0.1, 5])
         .on('zoom', ev => g.attr('transform', ev.transform));
-
     svg.call(zoom);
 
-    // ตั้ง initial view ให้พอดีกับความกว้างของ container
-    const CONTAINER_H_PADDING = 32; // ระยะห่างซ้าย-ขวาของ container
-    const cw     = container.clientWidth || 800;
-    const scale  = Math.min(1, (cw - CONTAINER_H_PADDING) / svgW);
-    const initTx = (cw - svgW * scale) / 2;
-    zoom.transform(svg, d3.zoomIdentity.translate(initTx, 16).scale(scale));
+    const cw    = container.clientWidth || 800;
+    const scale = Math.min(1, (cw - 32) / svgW);
+    zoom.transform(svg, d3.zoomIdentity.translate(PAD, 16).scale(scale));
 
-    // เก็บ reference สำหรับปุ่ม zoom controls (ใช้ใน index.html)
+    // เก็บ reference สำหรับปุ่ม zoom controls (treeZoomIn / treeZoomOut / treeZoomReset)
     window._treeSvg  = svg;
     window._treeZoom = zoom;
 
-    // ─── ตำแหน่ง node แต่ละตัว: X จาก D3, Y จาก generation ───
-    const posById = {};
-    root.each(d => {
-        if (d.data.id === '__root__') return;
-        const gen = genOf[d.data.id] !== undefined ? genOf[d.data.id] : 0;
-        posById[d.data.id] = { x: d.x + ox, y: PAD + gen * LEVEL_H };
-    });
+    // ─── วาด Elbow Lines (เส้นหักมุม) ก่อนวาดการ์ด เพื่อให้อยู่ด้านหลัง ───
+    const drawnLines = new Set();
 
-    // ─── สร้าง couple → children map ───
-    const coupleKey = (a, b) => [a, b].sort().join('|');
-    const coupleChildren = {};
-    members.forEach(m => {
-        const fa = fatherOf[m.id];
-        const mo = motherOf[m.id];
-        if (fa && mo && posById[fa] && posById[mo]) {
-            const key = coupleKey(fa, mo);
-            if (spousePairSet.has(key)) {
-                if (!coupleChildren[key]) coupleChildren[key] = [];
-                coupleChildren[key].push(m.id);
-            }
-        }
-    });
-    const coupleConnectedChildren = new Set(Object.values(coupleChildren).flat());
+    function drawLines(node) {
+        if (!node) return;
+        const parents = [node.father, node.mother].filter(Boolean);
+        if (!parents.length) return;
 
-    // ─── map: id → spouse id (ใช้หาจุดเริ่มต้นของเส้นพ่อ-แม่ → ลูก) ───
-    const spouseOf = {};
-    spousePairs.forEach(({ a, b }) => { spouseOf[a] = b; spouseOf[b] = a; });
+        const lineKey = `${node.id}@${node.depth}`;
+        if (drawnLines.has(lineKey)) return;
+        drawnLines.add(lineKey);
 
-    // ─── Edges: parent → child (ข้ามลูกที่มีพ่อ-แม่เป็นคู่สมรส) ───
-    root.links()
-        .filter(l => l.source.data.id !== '__root__' && l.target.data.id !== '__root__')
-        .filter(l => !coupleConnectedChildren.has(l.target.data.id))
-        .forEach(({ source: s, target: t }) => {
-            const ps = posById[s.data.id], pt = posById[t.data.id];
-            if (!ps || !pt) return;
-            const sx = ps.x, sy = ps.y;
-            const tx = pt.x, ty = pt.y;
+        const srcX = node.x + NODE_W;          // ขอบขวาของการ์ด
+        const srcY = node.y + NODE_H / 2;      // กึ่งกลาง Y ของการ์ด
+        const jctX = srcX + H_GAP / 2;         // X จุดเชื่อม (junction) กึ่งกลางช่องว่าง
 
-            // ถ้าพ่อ/แม่ (primary parent) มีคู่สมรสอยู่ในแผนผัง
-            // ให้โยงเส้นจากจุดกึ่งกลางของเส้นแต่งงาน แทนที่จะโยงจาก node พ่อหรือแม่โดยตรง
-            let startX = sx;
-            const spouseId = spouseOf[s.data.id];
-            if (spouseId && posById[spouseId]) {
-                const spouseX = posById[spouseId].x;
-                const [lx, rx] = sx <= spouseX
-                    ? [sx + NODE_W / 2, spouseX - NODE_W / 2]
-                    : [spouseX + NODE_W / 2, sx - NODE_W / 2];
-                startX = (lx + rx) / 2;
-            }
-
-            const startY = sy + NODE_H / 2;
-            const endY   = ty - NODE_H / 2;
-            const cy = (startY + endY) / 2;
-            g.append('path')
-                .attr('d', `M${startX},${startY} V${cy} H${tx} V${endY}`)
-                .attr('fill', 'none')
-                .attr('stroke', '#86efac')
-                .attr('stroke-width', 2);
-        });
-
-    // ─── Edges: พ่อ/แม่ที่สอง (เส้นประ) สำหรับลูกที่ไม่มีพ่อ-แม่เป็นคู่สมรส ───
-    members.forEach(m => {
-        if (coupleConnectedChildren.has(m.id)) return;
-        const p1 = primaryParentOf[m.id];
-        const p2 = (fatherOf[m.id] && fatherOf[m.id] !== p1) ? fatherOf[m.id]
-                 : (motherOf[m.id] && motherOf[m.id] !== p1) ? motherOf[m.id] : null;
-        if (!p2) return;
-        const posM = posById[m.id], posP = posById[p2];
-        if (!posM || !posP) return;
-        const cy = (posM.y - NODE_H / 2 + posP.y + NODE_H / 2) / 2;
-        g.append('path')
-            .attr('d', `M${posM.x},${posM.y - NODE_H / 2} V${cy} H${posP.x} V${posP.y + NODE_H / 2}`)
-            .attr('fill', 'none')
-            .attr('stroke', '#fbbf24')
-            .attr('stroke-width', 1.5)
-            .attr('stroke-dasharray', '5,3');
-    });
-
-    // ─── Edges: คู่สมรส — เส้นตรงแนวนอน + ลูกแตกจากจุดกึ่งกลาง ───
-    spousePairs.forEach(({ a, b }) => {
-        const posA = posById[a], posB = posById[b];
-        if (!posA || !posB) return;
-
-        // จัดซ้าย-ขวา
-        const [leftPos, rightPos] = posA.x <= posB.x ? [posA, posB] : [posB, posA];
-        const marriageY = (posA.y + posB.y) / 2;
-        const lineX1    = leftPos.x  + NODE_W / 2;
-        const lineX2    = rightPos.x - NODE_W / 2;
-        const midX      = (lineX1 + lineX2) / 2;
-
-        // เส้นแนวนอนแสดงการแต่งงาน (solid)
+        // เส้นแนวนอนจากการ์ดถึง junction
         g.append('line')
-            .attr('x1', lineX1).attr('y1', marriageY)
-            .attr('x2', lineX2).attr('y2', marriageY)
-            .attr('stroke', '#f59e0b')
-            .attr('stroke-width', 2);
+            .attr('x1', srcX).attr('y1', srcY)
+            .attr('x2', jctX).attr('y2', srcY)
+            .attr('stroke', '#86efac').attr('stroke-width', 2);
 
-        // ลูกของคู่สมรสนี้
-        const key      = coupleKey(a, b);
-        const children = (coupleChildren[key] || []).filter(cid => posById[cid]);
-
-        if (children.length > 0) {
-            children.sort((x, y) => posById[x].x - posById[y].x);
-
-            const dropStartY  = marriageY;
-            const firstChildY = posById[children[0]].y;
-            const junctionY   = firstChildY - NODE_H / 2 - Math.max((firstChildY - NODE_H / 2 - (marriageY + NODE_H / 2)) * 0.4, 10);
-
-            // เส้นตั้งจากกึ่งกลางเส้นแต่งงานลงสู่จุดแยก
+        if (parents.length === 2) {
+            // เส้นแนวตั้งที่ junction เชื่อมระดับพ่อ-แม่
+            const topY = Math.min(node.father.y, node.mother.y) + NODE_H / 2;
+            const botY = Math.max(node.father.y, node.mother.y) + NODE_H / 2;
             g.append('line')
-                .attr('x1', midX).attr('y1', dropStartY + NODE_H / 2)
-                .attr('x2', midX).attr('y2', junctionY)
-                .attr('stroke', '#86efac')
-                .attr('stroke-width', 2);
-
-            if (children.length > 1) {
-                // เส้นแนวนอนเชื่อมลูกทั้งหมด (ขยายถึง midX ถ้าจำเป็น)
-                const leftChildX  = posById[children[0]].x;
-                const rightChildX = posById[children[children.length - 1]].x;
-                const sibLineX1   = Math.min(leftChildX, midX);
-                const sibLineX2   = Math.max(rightChildX, midX);
-                g.append('line')
-                    .attr('x1', sibLineX1).attr('y1', junctionY)
-                    .attr('x2', sibLineX2).attr('y2', junctionY)
-                    .attr('stroke', '#86efac')
-                    .attr('stroke-width', 2);
-            }
-
-            // เส้นตั้งจากจุดแยกลงหาลูกแต่ละคน
-            children.forEach(cid => {
-                const posC = posById[cid];
-                g.append('line')
-                    .attr('x1', posC.x).attr('y1', junctionY)
-                    .attr('x2', posC.x).attr('y2', posC.y - NODE_H / 2)
-                    .attr('stroke', '#86efac')
-                    .attr('stroke-width', 2);
-            });
+                .attr('x1', jctX).attr('y1', topY)
+                .attr('x2', jctX).attr('y2', botY)
+                .attr('stroke', '#86efac').attr('stroke-width', 2);
         }
-    });
 
-    // ─── Nodes ───
-    root.descendants()
-        .filter(d => d.data.id !== '__root__')
-        .forEach(d => {
-            const member = d.data.member;
-            const pos    = posById[d.data.id];
-            if (!pos || !member) return;
-
-            const isAlive  = member.is_alive !== false;
-            const isMale   = member.gender === 'ชาย';
-            const isFemale = member.gender === 'หญิง';
-
-            const strokeColor = isMale   ? '#2563eb'
-                              : isFemale ? '#db2777'
-                              : '#059669';
-            // สีพื้นหลังตามเพศ: ฟ้าอ่อน=ชาย, ชมพูอ่อน=หญิง
-            const fillColor = isMale
-                ? (isAlive ? '#eff6ff' : '#dce8f5')
-                : isFemale
-                ? (isAlive ? '#fdf2f8' : '#eedbe8')
-                : (isAlive ? '#ffffff' : '#e5e7eb');
-            const textColor   = isAlive ? '#1e293b' : '#6b7280';
-
-            const ng = g.append('g')
-                .attr('class', 'tree-node')
-                .attr('transform', `translate(${pos.x - NODE_W / 2},${pos.y - NODE_H / 2})`)
-                .style('cursor', 'pointer')
-                .on('click', () => {
-                    if (typeof openRelationModal === 'function') openRelationModal(d.data.id);
-                });
-
-            // Card background
-            ng.append('rect')
-                .attr('width', NODE_W).attr('height', NODE_H).attr('rx', 10)
-                .attr('fill', fillColor)
-                .attr('stroke', strokeColor).attr('stroke-width', 2)
-                .style('filter', 'drop-shadow(0 2px 6px rgba(0,0,0,0.09))');
-
-            // ─── รูปโปรไฟล์วงกลม ───
-            // วงกลมพื้นหลัง
-            ng.append('circle')
-                .attr('cx', PHOTO_CX).attr('cy', PHOTO_CY).attr('r', PHOTO_R)
-                .attr('fill', fillColor)
-                .attr('stroke', strokeColor).attr('stroke-width', 1.5);
-
-            if (member.photo_url) {
-                // แสดงรูปจริง (ถูก clip เป็นวงกลม)
-                ng.append('image')
-                    .attr('href', member.photo_url)
-                    .attr('x', PHOTO_CX - PHOTO_R).attr('y', PHOTO_CY - PHOTO_R)
-                    .attr('width', PHOTO_R * 2).attr('height', PHOTO_R * 2)
-                    .attr('clip-path', `url(#${AVATAR_CLIP_ID})`);
-            } else {
-                // Placeholder: ตัวอักษรแรกของชื่อ
-                const initial = member.first_name ? member.first_name.charAt(0) : '?';
-                ng.append('text')
-                    .attr('x', PHOTO_CX).attr('y', PHOTO_CY + 6)
-                    .attr('text-anchor', 'middle')
-                    .attr('font-size', '15px').attr('font-weight', '700')
-                    .attr('fill', strokeColor)
-                    .text(initial);
-            }
-
-            // Line 1: first_name - last_name (ไม่มี emoji เพศ)
-            const fullName = [member.first_name, member.last_name].filter(Boolean).join(' - ');
-            ng.append('text')
-                .attr('x', NODE_W / 2).attr('y', 60)
-                .attr('text-anchor', 'middle')
-                .attr('font-size', '12px').attr('font-weight', '700').attr('fill', textColor)
-                .text(fullName.length > 22 ? fullName.slice(0, 22) + '…' : fullName);
-
-            // Line 2: (nickname)
-            if (member.nickname) {
-                ng.append('text')
-                    .attr('x', NODE_W / 2).attr('y', 76)
-                    .attr('text-anchor', 'middle')
-                    .attr('font-size', '11px').attr('fill', textColor)
-                    .text(`(${member.nickname})`);
-            }
-
-            // ─── Kinship badge (จาก กำหนดตัวตน) ───
-            if (identityId) {
-                const isSelf  = identityId === member.id;
-                const kinship = isSelf
-                    ? 'ตัวเอง'
-                    : (typeof computeKinship === 'function'
-                        ? (computeKinship(identityId, member.id) || '')
-                        : '');
-
-                if (kinship) {
-                    const BADGE_CHAR_W   = 7;  // ความกว้างโดยประมาณต่อตัวอักษร (px)
-                    const BADGE_PADDING  = 14; // padding ซ้าย-ขวารวม (px)
-                    const BADGE_MIN_W    = 44; // ความกว้างขั้นต่ำ (px)
-                    const bw  = Math.max(kinship.length * BADGE_CHAR_W + BADGE_PADDING, BADGE_MIN_W);
-                    const bx  = (NODE_W - bw) / 2;
-                    const by  = NODE_H - 17;
-                    ng.append('rect')
-                        .attr('x', bx).attr('y', by)
-                        .attr('width', bw).attr('height', 14).attr('rx', 7)
-                        .attr('fill',   isSelf ? '#d1fae5' : '#fef3c7')
-                        .attr('stroke', isSelf ? '#6ee7b7' : '#fde68a')
-                        .attr('stroke-width', 1);
-                    ng.append('text')
-                        .attr('x', NODE_W / 2).attr('y', by + 10)
-                        .attr('text-anchor', 'middle')
-                        .attr('font-size', '9px').attr('font-weight', '700')
-                        .attr('fill', isSelf ? '#065f46' : '#92400e')
-                        .text(kinship);
-                }
-            }
+        // เส้นแนวนอนจาก junction ถึงขอบซ้ายของการ์ดพ่อ/แม่แต่ละคน
+        parents.forEach(p => {
+            const pY = p.y + NODE_H / 2;
+            g.append('line')
+                .attr('x1', jctX).attr('y1', pY)
+                .attr('x2', p.x).attr('y2', pY)
+                .attr('stroke', '#86efac').attr('stroke-width', 2);
         });
+
+        drawLines(node.father);
+        drawLines(node.mother);
+    }
+
+    drawLines(rootNode);
+
+    // ─── วาด Node Cards ───
+    const drawnNodes = new Set();
+
+    function drawNode(node) {
+        if (!node) return;
+        const nodeKey = `${node.id}@${node.depth}`;
+        if (drawnNodes.has(nodeKey)) return;
+        drawnNodes.add(nodeKey);
+
+        const member = byId[node.id];
+        if (!member) return;
+
+        const isRoot   = node.id === rootId && node.depth === 0;
+        const isAlive  = member.is_alive !== false;
+        const isMale   = member.gender === 'ชาย';
+        const isFemale = member.gender === 'หญิง';
+
+        const strokeColor = isRoot   ? '#059669'
+                          : isMale   ? '#2563eb'
+                          : isFemale ? '#db2777'
+                          : '#059669';
+
+        const fillColor = isRoot
+            ? '#d1fae5'
+            : isMale   ? (isAlive ? '#eff6ff' : '#dce8f5')
+            : isFemale ? (isAlive ? '#fdf2f8' : '#eedbe8')
+            :             (isAlive ? '#ffffff'  : '#e5e7eb');
+
+        const textColor = isAlive ? '#1e293b' : '#6b7280';
+
+        const ng = g.append('g')
+            .attr('class', 'tree-node')
+            .attr('transform', `translate(${node.x},${node.y})`)
+            .style('cursor', 'pointer')
+            .on('click', () => {
+                if (typeof openRelationModal === 'function') openRelationModal(member.id);
+            });
+
+        // การ์ดพื้นหลัง (Root เน้นด้วยเส้นขอบหนาและสีเขียว)
+        ng.append('rect')
+            .attr('width', NODE_W).attr('height', NODE_H).attr('rx', 10)
+            .attr('fill', fillColor)
+            .attr('stroke', strokeColor)
+            .attr('stroke-width', isRoot ? 3 : 2)
+            .style('filter', `drop-shadow(0 2px 6px rgba(0,0,0,${isRoot ? SHADOW_ROOT : SHADOW_DEFAULT}))`);
+
+        // วงกลมพื้นหลังรูปภาพ
+        ng.append('circle')
+            .attr('cx', PHOTO_CX).attr('cy', PHOTO_CY).attr('r', PHOTO_R)
+            .attr('fill', fillColor)
+            .attr('stroke', strokeColor).attr('stroke-width', 1.5);
+
+        if (member.photo_url) {
+            // แสดงรูปจริง (clip เป็นวงกลม)
+            ng.append('image')
+                .attr('href', member.photo_url)
+                .attr('x', PHOTO_CX - PHOTO_R).attr('y', PHOTO_CY - PHOTO_R)
+                .attr('width', PHOTO_R * 2).attr('height', PHOTO_R * 2)
+                .attr('clip-path', `url(#${CLIP_ID})`);
+        } else {
+            // Placeholder: ตัวอักษรแรกของชื่อ
+            const initial = member.first_name ? member.first_name.charAt(0) : '?';
+            ng.append('text')
+                .attr('x', PHOTO_CX).attr('y', PHOTO_CY + 5)
+                .attr('text-anchor', 'middle')
+                .attr('font-size', '13px').attr('font-weight', '700')
+                .attr('fill', strokeColor)
+                .text(initial);
+        }
+
+        // ชื่อ-นามสกุล
+        const fullName = [member.first_name, member.last_name].filter(Boolean).join(' ');
+        ng.append('text')
+            .attr('x', NODE_W / 2).attr('y', 48)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '11px').attr('font-weight', '700').attr('fill', textColor)
+            .text(fullName.length > 20 ? fullName.slice(0, 20) + '…' : fullName);
+
+        // ชื่อเล่น
+        if (member.nickname) {
+            ng.append('text')
+                .attr('x', NODE_W / 2).attr('y', 61)
+                .attr('text-anchor', 'middle')
+                .attr('font-size', '10px').attr('fill', textColor)
+                .text(`(${member.nickname})`);
+        }
+
+        // ─── Kinship badge (จาก กำหนดตัวตน) ───
+        if (identityId) {
+            const isSelf  = identityId === member.id;
+            const kinship = isSelf
+                ? 'ตัวเอง'
+                : (typeof computeKinship === 'function'
+                    ? (computeKinship(identityId, member.id) || '')
+                    : '');
+
+            if (kinship) {
+                const bw = Math.max(kinship.length * BADGE_CHAR_W + BADGE_PAD, BADGE_MIN_W);
+                const bx = (NODE_W - bw) / 2;
+                const by = NODE_H - 16;
+                ng.append('rect')
+                    .attr('x', bx).attr('y', by)
+                    .attr('width', bw).attr('height', 13).attr('rx', 6.5)
+                    .attr('fill',   isSelf ? '#d1fae5' : '#fef3c7')
+                    .attr('stroke', isSelf ? '#6ee7b7' : '#fde68a')
+                    .attr('stroke-width', 1);
+                ng.append('text')
+                    .attr('x', NODE_W / 2).attr('y', by + 9)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', '9px').attr('font-weight', '700')
+                    .attr('fill', isSelf ? '#065f46' : '#92400e')
+                    .text(kinship);
+            }
+        }
+
+        drawNode(node.father);
+        drawNode(node.mother);
+    }
+
+    drawNode(rootNode);
 }
