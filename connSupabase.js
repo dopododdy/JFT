@@ -300,6 +300,10 @@ function renderMemberCards(members) {
             : `⚫ เสียชีวิต${member.death_date ? ' ' + formatThaiDate(member.death_date) : ''}`;
         const former  = [member.former_first_name, member.former_last_name].filter(Boolean).join(' ');
 
+        const genderEmoji = member.gender === 'ชาย' ? '👨' : member.gender === 'หญิง' ? '👩' : '👤';
+        const nickLabel   = escapeHtml(member.nickname || member.first_name || '');
+        const statusDot   = alive ? '🟢' : '⚫';
+
         const fRel = rels.find(r => r.from_id === member.id && r.relation === 'พ่อ'  && memberById[r.to_id]);
         const mRel = rels.find(r => r.from_id === member.id && r.relation === 'แม่' && memberById[r.to_id]);
         let parentText = '';
@@ -348,30 +352,38 @@ function renderMemberCards(members) {
               </div>`;
 
         return `<div class="member-card${alive ? '' : ' deceased'}" data-id="${escapeHtml(member.id)}" data-name="${escapeHtml(search.toLowerCase())}" style="border-left-color:${accent};background-color:${bg};">
-            ${opts.isBack ? `<div class="card-spouse-label">💑 คู่สมรส</div>` : ''}
-            <div class="member-card-header">
-                <div class="member-card-title">
-                    <h3 class="member-card-name">${escapeHtml(display)}</h3>
-                    ${_kinshipHtml(member.id)}
+            <div class="member-card-summary">
+                <span class="member-summary-gender">${genderEmoji}</span>
+                <span class="member-summary-nick">${nickLabel}</span>
+                <span class="member-summary-status">${statusDot}</span>
+                <span class="member-summary-arrow">▾</span>
+            </div>
+            <div class="member-card-body">
+                ${opts.isBack ? `<div class="card-spouse-label">💑 คู่สมรส</div>` : ''}
+                <div class="member-card-header">
+                    <div class="member-card-title">
+                        <h3 class="member-card-name">${escapeHtml(display)}</h3>
+                        ${_kinshipHtml(member.id)}
+                    </div>
+                    ${_photoHtml(member, 56)}
                 </div>
-                ${_photoHtml(member, 56)}
+                <div class="member-card-info">
+                    ${former ? `<div><strong>ชื่อเดิม:</strong> ${escapeHtml(former)}</div>` : ''}
+                    ${member.marital_status ? `<div><strong>สถานะสมรส:</strong> ${escapeHtml(member.marital_status)}</div>` : ''}
+                    <div><strong>เพศ:</strong> ${escapeHtml(member.gender) || 'ไม่ระบุ'}</div>
+                    ${member.birth_date ? `<div><strong>วันเกิด:</strong> ${formatThaiDate(member.birth_date)}</div>` : ''}
+                    <div><strong>สถานะ:</strong> ${aliveText}</div>
+                    ${age ? `<div><strong>อายุ:</strong> ${age} ปี</div>` : ''}
+                    ${member.phone     ? `<div><strong>โทร:</strong> ${escapeHtml(member.phone)}</div>`               : ''}
+                    ${member.workplace ? `<div><strong>สถานที่ทำงาน:</strong> ${escapeHtml(member.workplace)}</div>` : ''}
+                    ${member.address   ? `<div><strong>ที่อยู่:</strong> ${escapeHtml(member.address)}</div>`         : ''}
+                    ${member.line_id   ? `<div><strong>ไลน์:</strong> ${escapeHtml(member.line_id)}</div>`            : ''}
+                    ${parentText}
+                    ${relTags ? `<div class="rel-tags-wrap">${relTags}</div>` : ''}
+                    ${member.bio ? `<div class="member-bio">"${escapeHtml(member.bio)}"</div>` : ''}
+                </div>
+                ${footer}
             </div>
-            <div class="member-card-info">
-                ${former ? `<div><strong>ชื่อเดิม:</strong> ${escapeHtml(former)}</div>` : ''}
-                ${member.marital_status ? `<div><strong>สถานะสมรส:</strong> ${escapeHtml(member.marital_status)}</div>` : ''}
-                <div><strong>เพศ:</strong> ${escapeHtml(member.gender) || 'ไม่ระบุ'}</div>
-                ${member.birth_date ? `<div><strong>วันเกิด:</strong> ${formatThaiDate(member.birth_date)}</div>` : ''}
-                <div><strong>สถานะ:</strong> ${aliveText}</div>
-                ${age ? `<div><strong>อายุ:</strong> ${age} ปี</div>` : ''}
-                ${member.phone     ? `<div><strong>โทร:</strong> ${escapeHtml(member.phone)}</div>`               : ''}
-                ${member.workplace ? `<div><strong>สถานที่ทำงาน:</strong> ${escapeHtml(member.workplace)}</div>` : ''}
-                ${member.address   ? `<div><strong>ที่อยู่:</strong> ${escapeHtml(member.address)}</div>`         : ''}
-                ${member.line_id   ? `<div><strong>ไลน์:</strong> ${escapeHtml(member.line_id)}</div>`            : ''}
-                ${parentText}
-                ${relTags ? `<div class="rel-tags-wrap">${relTags}</div>` : ''}
-                ${member.bio ? `<div class="member-bio">"${escapeHtml(member.bio)}"</div>` : ''}
-            </div>
-            ${footer}
         </div>`;
     }
 
@@ -761,9 +773,11 @@ function renderFamilyTree() {
     const container = document.getElementById('tree-container');
     if (!container || !window.d3) return;
 
-    // ล้าง SVG เดิม (คงปุ่มควบคุมและ legend ไว้)
+    // ล้าง SVG เดิมและ placeholder เดิม (คงปุ่มควบคุมไว้)
+    // placeholder เก่าต้องถูกลบก่อน เพราะอาจมาจาก render ครั้งก่อนที่แสดง state ต่างกัน
     const existingSvg = container.querySelector('svg');
     if (existingSvg) existingSvg.remove();
+    container.querySelectorAll('.state-placeholder').forEach(el => el.remove());
 
     const members       = window._familyMembers  || [];
     const relationships = window._relationships  || [];
@@ -774,6 +788,15 @@ function renderFamilyTree() {
         ph.className = 'state-placeholder';
         ph.style.cssText = 'border:none;border-radius:0;';
         ph.innerHTML = '<div style="font-size:2.5rem;">🌱</div><p>ยังไม่มีข้อมูลสมาชิกในตระกูล</p><small>กดปุ่ม <strong>เพิ่มสมาชิก</strong> เพื่อเริ่มต้น</small>';
+        container.appendChild(ph);
+        return;
+    }
+
+    if (!identityId) {
+        const ph = document.createElement('div');
+        ph.className = 'state-placeholder';
+        ph.style.cssText = 'border:none;border-radius:0;';
+        ph.innerHTML = '<div style="font-size:2.5rem;">👤</div><p>กรุณากำหนดตัวตนก่อน</p><small>เพื่อการแสดงผลแผนผังที่ถูกต้อง</small><br><button class="btn btn-primary" style="margin-top:1rem;" onclick="openIdentityModal()">👤 กำหนดตัวตน</button>';
         container.appendChild(ph);
         return;
     }
